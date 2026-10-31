@@ -1,6 +1,7 @@
 #import "SkinEditorViewController.h"
 #import "SkinPreviewView.h"
 #import "utils.h"
+#import <objc/runtime.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @interface SkinEditorViewController () <UIDocumentPickerDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate>
@@ -10,6 +11,7 @@
 @property (nonatomic, strong) UIImage *selectedSkinImage;
 @property (nonatomic, strong) NSString *selectedCapeId;
 @property (nonatomic, assign) SkinArmStyle selectedArmStyle;
+@property (nonatomic, assign) BOOL isPickingCape;
 
 @property (nonatomic, strong) UIButton *btnWide;
 @property (nonatomic, strong) UIButton *btnSlim;
@@ -297,6 +299,7 @@
     [pickerSheet addAction:[UIAlertAction actionWithTitle:localize(@"skin.pick.files", @"Files App (.png)")
                                                     style:UIAlertActionStyleDefault
                                                   handler:^(UIAlertAction * _Nonnull action) {
+        self.isPickingCape = NO;
         UIDocumentPickerViewController *docPicker;
         if (@available(iOS 14.0, *)) {
             docPicker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypePNG] asCopy:YES];
@@ -311,6 +314,7 @@
         [pickerSheet addAction:[UIAlertAction actionWithTitle:localize(@"skin.pick.photos", @"Photo Library")
                                                         style:UIAlertActionStyleDefault
                                                       handler:^(UIAlertAction * _Nonnull action) {
+            self.isPickingCape = NO;
             UIImagePickerController *picker = [[UIImagePickerController alloc] init];
             picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
             picker.delegate = self;
@@ -325,6 +329,7 @@
 }
 
 - (void)actionPickCustomCape {
+    self.isPickingCape = YES;
     UIDocumentPickerViewController *docPicker;
     if (@available(iOS 14.0, *)) {
         docPicker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypePNG] asCopy:YES];
@@ -332,7 +337,6 @@
         docPicker = [[UIDocumentPickerViewController alloc] initWithDocumentTypes:@[@"public.png"] inMode:UIDocumentPickerModeImport];
     }
     docPicker.delegate = self;
-    objc_setAssociatedObject(docPicker, "is_cape_picker", @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     [self presentViewController:docPicker animated:YES completion:nil];
 }
 
@@ -346,8 +350,7 @@
     [url stopAccessingSecurityScopedResource];
     if (data) {
         UIImage *img = [UIImage imageWithData:data];
-        BOOL isCape = [objc_getAssociatedObject(controller, "is_cape_picker") boolValue];
-        if (isCape) {
+        if (self.isPickingCape) {
             // Save custom cape
             NSString *customCapePath = [[SkinManager sharedManager].skinsDirectory stringByAppendingPathComponent:@"user_custom_cape.png"];
             [data writeToFile:customCapePath atomically:YES];

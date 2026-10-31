@@ -29,6 +29,7 @@
 
 @interface SkinManager : NSObject
 
+@property (nonatomic, copy, readonly) NSString *skinsDirectory;
 @property (nonatomic, strong) NSMutableArray<SkinItem *> *savedSkins;
 @property (nonatomic, strong) NSArray<SkinItem *> *defaultSkins;
 @property (nonatomic, strong) NSArray<CapeItem *> *availableCapes;

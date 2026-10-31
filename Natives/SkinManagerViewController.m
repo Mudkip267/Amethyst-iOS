@@ -2,6 +2,7 @@
 #import "SkinPreviewView.h"
 #import "SkinEditorViewController.h"
 #import "utils.h"
+#import <objc/runtime.h>
 
 @interface SkinManagerViewController ()
 

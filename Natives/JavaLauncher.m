@@ -67,11 +67,13 @@ void init_loadDefaultEnv() {
     setenv("MVK_CONFIG_FAST_MATH_ENABLED", "2", 0);
     setenv("MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS", "1", 0);
     setenv("MVK_CONFIG_PREFILL_METAL_COMMAND_BUFFERS", "0", 0);
-    setenv("MVK_CONFIG_USE_COMMAND_POOLING", "1", 0);
     if (!getEntitlementValue(@"com.apple.private.memorystatus")) {
+        // Disable command pooling on non-jailbroken devices to prevent Metal command buffer accumulation across dimension transitions
+        setenv("MVK_CONFIG_USE_COMMAND_POOLING", "0", 0);
         // Disable MTLHeap on non-jailbroken devices to prevent dirty memory bloat & fragmentation
         setenv("MVK_CONFIG_USE_MTLHEAP", "0", 0);
     } else {
+        setenv("MVK_CONFIG_USE_COMMAND_POOLING", "1", 0);
         setenv("MVK_CONFIG_USE_MTLHEAP", "1", 0);
     }
     setenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "1", 0);
@@ -336,9 +338,9 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
         allocmem = roundf((NSProcessInfo.processInfo.physicalMemory >> 20) * autoRatio);
     } else {
         allocmem = getPrefInt(@"java.allocated_memory");
-        if (!getEntitlementValue(@"com.apple.private.memorystatus") && allocmem > 1200) {
-            NSLog(@"[JavaLauncher] Warning: RAM allocation %d MB exceeds safe limit on non-jailbroken device without memorystatus entitlement. Capping to 1200 MB to prevent Jetsam SIGKILL.", allocmem);
-            allocmem = 1200;
+        if (!getEntitlementValue(@"com.apple.private.memorystatus") && allocmem > 1100) {
+            NSLog(@"[JavaLauncher] Warning: RAM allocation %d MB exceeds safe limit on non-jailbroken device without memorystatus entitlement. Capping to 1100 MB to prevent Jetsam SIGKILL.", allocmem);
+            allocmem = 1100;
         }
     }
     NSLog(@"[JavaLauncher] Max RAM allocation is set to %d MB", allocmem);
@@ -382,6 +384,14 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
     margv[++margc] = "-XX:+UseG1GC";
     margv[++margc] = "-XX:InitiatingHeapOccupancyPercent=40";
     margv[++margc] = "-XX:G1ReservePercent=15";
+    margv[++margc] = "-XX:G1PeriodicGCInterval=2000";
+    margv[++margc] = "-XX:+G1PeriodicGCInvokesConcurrent";
+    margv[++margc] = "-XX:G1PeriodicGCSysLoadThreshold=0.0";
+    margv[++margc] = "-XX:G1HeapWastePercent=5";
+    margv[++margc] = "-XX:G1MixedGCCountTarget=4";
+    margv[++margc] = "-XX:+ExplicitGCInvokesConcurrent";
+    margv[++margc] = "-XX:MinHeapFreeRatio=20";
+    margv[++margc] = "-XX:MaxHeapFreeRatio=40";
     margv[++margc] = "-XX:MaxMetaspaceSize=384M";
     
     NSString *frameworksPath = [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks"];

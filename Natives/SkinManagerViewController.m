@@ -1,6 +1,7 @@
 #import "SkinManagerViewController.h"
 #import "SkinPreviewView.h"
 #import "SkinEditorViewController.h"
+#import "LauncherPreferences.h"
 #import "utils.h"
 #import <objc/runtime.h>
 
@@ -41,8 +42,8 @@
 - (void)buildLayout {
     CGFloat totalW = self.view.bounds.size.width;
     CGFloat totalH = self.view.bounds.size.height;
-    CGFloat topBarH = self.navigationController.navigationBar.frame.size.height + [UIApplication sharedApplication].statusBarFrame.size.height;
-    if (topBarH < 60) topBarH = 60;
+    CGFloat topBarH = self.navigationController.navigationBar.frame.size.height + 20;
+    if (topBarH < 64) topBarH = 64;
 
     CGFloat contentH = totalH - topBarH;
 

@@ -47,7 +47,7 @@ jobs:
       - name: Setup Xcode Version
         uses: maxim-lobanov/setup-xcode@master
         with:
-          xcode-version: '26.5'
+          xcode-version: 'latest-stable'
 
       - name: Install Dependencies
         run: brew install make ldid temurin@8

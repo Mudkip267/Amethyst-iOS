@@ -4,6 +4,7 @@
 #import "AccountListViewController.h"
 #import "AFNetworking.h"
 #import "LauncherPreferences.h"
+#import "SkinManagerViewController.h"
 #import "UIImageView+AFNetworking.h"
 #import "ios_uikit_bridge.h"
 #import "utils.h"
@@ -58,6 +59,7 @@
     if (indexPath.row == self.accountList.count) {
         cell.imageView.image = [UIImage imageNamed:@"IconAdd"];
         cell.textLabel.text = localize(@"login.option.add", nil);
+        cell.accessoryType = UITableViewCellAccessoryNone;
         return cell;
     }
 
@@ -75,10 +77,29 @@
         cell.detailTextLabel.text = selected[@"xboxGamertag"];
     }
 
+    cell.accessoryType = UITableViewCellAccessoryDetailButton;
     cell.imageView.contentMode = UIViewContentModeCenter;
     [cell.imageView setImageWithURL:[NSURL URLWithString:[selected[@"profilePicURL"] stringByReplacingOccurrencesOfString:@"\\/" withString:@"/"]] placeholderImage:[UIImage imageNamed:@"DefaultAccount"]];
 
     return cell;
+}
+
+- (void)tableView:(UITableView *)tableView accessoryButtonTappedForRowWithIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.row >= self.accountList.count) return;
+    NSString *username = self.accountList[indexPath.row][@"username"];
+    [self openSkinManagerForUsername:username];
+}
+
+- (void)openSkinManagerForUsername:(NSString *)username {
+    SkinManagerViewController *skinVC = [[SkinManagerViewController alloc] init];
+    skinVC.currentAccountUsername = username;
+    __weak typeof(self) weakSelf = self;
+    skinVC.whenSkinChanged = ^(SkinItem *activeSkin) {
+        [weakSelf.tableView reloadData];
+    };
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:skinVC];
+    nav.modalPresentationStyle = UIModalPresentationPageSheet;
+    [self presentViewController:nav animated:YES completion:nil];
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -90,6 +111,33 @@
         return;
     }
 
+    NSString *username = self.accountList[indexPath.row][@"username"];
+    UIAlertController *actionSheet = [UIAlertController alertControllerWithTitle:username
+                                                                         message:nil
+                                                                  preferredStyle:UIAlertControllerStyleActionSheet];
+    actionSheet.popoverPresentationController.sourceView = cell;
+    actionSheet.popoverPresentationController.sourceRect = cell.bounds;
+
+    [actionSheet addAction:[UIAlertAction actionWithTitle:localize(@"account.action.select", @"Select Account")
+                                                    style:UIAlertActionStyleDefault
+                                                  handler:^(UIAlertAction * _Nonnull action) {
+        [self loginAccountAtIndexPath:indexPath forCell:cell];
+    }]];
+
+    [actionSheet addAction:[UIAlertAction actionWithTitle:localize(@"skin.manager.title", @"Skins & Capes")
+                                                    style:UIAlertActionStyleDefault
+                                                  handler:^(UIAlertAction * _Nonnull action) {
+        [self openSkinManagerForUsername:username];
+    }]];
+
+    [actionSheet addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", @"Cancel")
+                                                    style:UIAlertActionStyleCancel
+                                                  handler:nil]];
+
+    [self presentViewController:actionSheet animated:YES completion:nil];
+}
+
+- (void)loginAccountAtIndexPath:(NSIndexPath *)indexPath forCell:(UITableViewCell *)cell {
     self.modalInPresentation = YES;
     self.tableView.userInteractionEnabled = NO;
     [self addActivityIndicatorTo:cell];

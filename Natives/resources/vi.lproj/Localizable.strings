@@ -288,3 +288,28 @@
 "preference.title.renderer.release.mg" = "Keo di động";
 "preference.title.renderer.debug.mg" = "MobileGlues (1.17+) - xuất OpenGL 4.0,";
 "preference.title.renderer.debug.mobilegl" = "MobileGL Vulkan (1.17+) - xuất OpenGL 4.6, THỬ NGHIỆM";
+
+/* Skin and Cape Customization */
+"skin.manager.title" = "Trang phục & Áo choàng";
+"skin.add.title" = "Thêm trang phục";
+"skin.edit.title" = "Chỉnh sửa trang phục";
+"skin.editor.texture" = "Họa tiết (Texture)";
+"skin.editor.replace" = "Đổi họa tiết";
+"skin.editor.arm_style" = "Kiểu cánh tay";
+"skin.editor.cape" = "Áo choàng";
+"skin.editor.add" = "Thêm skin";
+"skin.drag.hint" = "Kéo để xoay / Chạm để đổi mặt";
+"skin.change_cape" = "Đổi áo choàng";
+"skin.apply.account" = "Áp dụng cho tài khoản";
+"skin.section.saved" = "Trang phục đã lưu";
+"skin.section.default" = "Trang phục mặc định";
+"skin.add.skin" = "Thêm skin";
+"skin.delete.title" = "Xóa trang phục";
+"skin.delete.confirm" = "Bạn có chắc chắn muốn xóa trang phục tùy chỉnh này không?";
+"skin.cape.none" = "Dùng áo choàng mặc định";
+"skin.pick.source" = "Chọn ảnh trang phục";
+"skin.pick.files" = "Ứng dụng Tệp (.png)";
+"skin.pick.photos" = "Thư viện ảnh";
+"skin.applied.msg" = "Đã cập nhật skin và áo choàng thành công cho tài khoản!";
+"account.action.select" = "Chọn tài khoản này";
+"login.option.manage" = "Quản lý tài khoản";

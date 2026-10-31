@@ -153,6 +153,10 @@ add_executable(AngelAuraAmethyst
   input/KeyboardInput.m
 
   AccountListViewController.m
+  SkinPreviewView.m
+  SkinModel.m
+  SkinEditorViewController.m
+  SkinManagerViewController.m
   AppDelegate.m
   CustomControlsViewController.m
   CustomControlsViewController+UndoManager.m

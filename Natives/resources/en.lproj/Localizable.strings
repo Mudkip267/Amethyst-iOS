@@ -496,3 +496,27 @@
 "content.version.beta" = "Beta";
 "content.version.alpha" = "Alpha";
 "content.version.recommended" = "Recommended";
+/* Skin and Cape Customization */
+"skin.manager.title" = "Skins & Capes";
+"skin.add.title" = "Adding a skin";
+"skin.edit.title" = "Editing skin";
+"skin.editor.texture" = "Texture";
+"skin.editor.replace" = "Replace texture";
+"skin.editor.arm_style" = "Arm style";
+"skin.editor.cape" = "Cape";
+"skin.editor.add" = "Add skin";
+"skin.drag.hint" = "Drag to rotate / Tap to flip";
+"skin.change_cape" = "Change cape";
+"skin.apply.account" = "Apply to Account";
+"skin.section.saved" = "Saved skins";
+"skin.section.default" = "Default skins";
+"skin.add.skin" = "Add a skin";
+"skin.delete.title" = "Delete skin";
+"skin.delete.confirm" = "Are you sure you want to delete this custom skin?";
+"skin.cape.none" = "Use default cape";
+"skin.pick.source" = "Choose skin image";
+"skin.pick.files" = "Files App (.png)";
+"skin.pick.photos" = "Photo Library";
+"skin.applied.msg" = "Skin and cape updated successfully for this account!";
+"account.action.select" = "Select Account";
+"login.option.manage" = "Manage Accounts";

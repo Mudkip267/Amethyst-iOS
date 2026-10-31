@@ -1,5 +1,6 @@
 #import "authenticator/BaseAuthenticator.h"
 #import "AccountListViewController.h"
+#import "SkinManagerViewController.h"
 #import "AFNetworking.h"
 #import "ALTServerConnection.h"
 #import "HostManagerBridge.h"
@@ -249,6 +250,44 @@
 }
 
 - (void)selectAccount:(UIButton *)sender {
+    if (BaseAuthenticator.current.authData && sender == self.accountButton) {
+        UIAlertController *sheet = [UIAlertController alertControllerWithTitle:BaseAuthenticator.current.authData[@"username"]
+                                                                       message:nil
+                                                                preferredStyle:UIAlertControllerStyleActionSheet];
+        sheet.popoverPresentationController.sourceView = sender;
+        sheet.popoverPresentationController.sourceRect = sender.bounds;
+
+        [sheet addAction:[UIAlertAction actionWithTitle:localize(@"skin.manager.title", @"Skins & Capes")
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(UIAlertAction * _Nonnull action) {
+            SkinManagerViewController *skinVC = [[SkinManagerViewController alloc] init];
+            skinVC.currentAccountUsername = BaseAuthenticator.current.authData[@"username"];
+            __weak typeof(self) weakSelf = self;
+            skinVC.whenSkinChanged = ^(SkinItem *activeSkin) {
+                [weakSelf updateAccountInfo];
+            };
+            UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:skinVC];
+            nav.modalPresentationStyle = UIModalPresentationPageSheet;
+            [self presentViewController:nav animated:YES completion:nil];
+        }]];
+
+        [sheet addAction:[UIAlertAction actionWithTitle:localize(@"login.option.manage", @"Manage Accounts")
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(UIAlertAction * _Nonnull action) {
+            [self showAccountListPopover:sender];
+        }]];
+
+        [sheet addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", @"Cancel")
+                                                  style:UIAlertActionStyleCancel
+                                                handler:nil]];
+        [self presentViewController:sheet animated:YES completion:nil];
+        return;
+    }
+
+    [self showAccountListPopover:sender];
+}
+
+- (void)showAccountListPopover:(UIButton *)sender {
     AccountListViewController *vc = [[AccountListViewController alloc] init];
     vc.whenDelete = ^void(NSString* name) {
         if ([name isEqualToString:getPrefObject(@"internal.selected_account")]) {

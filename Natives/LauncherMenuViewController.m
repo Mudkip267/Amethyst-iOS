@@ -1,5 +1,6 @@
 #import "authenticator/BaseAuthenticator.h"
 #import "AccountListViewController.h"
+#import "SkinManagerViewController.h"
 #import "AFNetworking.h"
 #import "ALTServerConnection.h"
 #import "HostManagerBridge.h"
@@ -245,6 +246,30 @@
 }
 
 - (void)selectAccount:(UIButton *)sender {
+    if (BaseAuthenticator.current.authData && sender == self.accountButton) {
+        UIAlertController *sheet = [UIAlertController alertControllerWithTitle:BaseAuthenticator.current.authData[@"username"] message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+        sheet.popoverPresentationController.sourceView = sender;
+        sheet.popoverPresentationController.sourceRect = sender.bounds;
+        [sheet addAction:[UIAlertAction actionWithTitle:@"Skin / Cape" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            SkinManagerViewController *manager = [SkinManagerViewController new];
+            manager.currentAccountUsername = BaseAuthenticator.current.authData[@"username"];
+            __weak typeof(self) weakSelf = self;
+            manager.whenSkinChanged = ^(SkinItem *skin) { [weakSelf updateAccountInfo]; };
+            UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:manager];
+            navigation.modalPresentationStyle = UIModalPresentationPageSheet;
+            [self presentViewController:navigation animated:YES completion:nil];
+        }]];
+        [sheet addAction:[UIAlertAction actionWithTitle:localize(@"login.option.manage", @"Manage Accounts") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [self showAccountListPopover:sender];
+        }]];
+        [sheet addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", @"Cancel") style:UIAlertActionStyleCancel handler:nil]];
+        [self presentViewController:sheet animated:YES completion:nil];
+        return;
+    }
+    [self showAccountListPopover:sender];
+}
+
+- (void)showAccountListPopover:(UIButton *)sender {
     AccountListViewController *vc = [[AccountListViewController alloc] init];
     vc.whenDelete = ^void(NSString* name) {
         if ([name isEqualToString:getPrefObject(@"internal.selected_account")]) {
@@ -323,8 +348,16 @@
     // TODO: Add caching mechanism for profile pictures
     NSURL *url = [NSURL URLWithString:[selected[@"profilePicURL"] stringByReplacingOccurrencesOfString:@"\\/" withString:@"/"]];
     UIImage *placeholder = [UIImage imageNamed:@"DefaultAccount"];
-    [self.accountButton setImageForState:UIControlStateNormal withURL:url placeholderImage:placeholder];
-    [self.accountButton.imageView setImageWithURL:url placeholderImage:placeholder];
+    if (url.isFileURL) {
+        [self.accountButton cancelImageDownloadTaskForState:UIControlStateNormal];
+        [self.accountButton.imageView cancelImageDownloadTask];
+        UIImage *image = [UIImage imageWithContentsOfFile:url.path] ?: placeholder;
+        [self.accountButton setImage:image forState:UIControlStateNormal];
+        self.accountButton.imageView.image = image;
+    } else {
+        [self.accountButton setImageForState:UIControlStateNormal withURL:url placeholderImage:placeholder];
+        [self.accountButton.imageView setImageWithURL:url placeholderImage:placeholder];
+    }
     [self.accountButton sizeToFit];
 
     // Update profiles and local version list if needed

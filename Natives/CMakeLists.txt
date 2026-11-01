@@ -151,6 +151,10 @@ add_executable(AngelAuraAmethyst
   FileListViewController.m
   GameSurfaceView.m
   JavaGUIViewController.m
+  SkinModel.m
+  SkinPreviewView.m
+  SkinManagerViewController.m
+  SkinEditorViewController.m
   LauncherMenuViewController.m
   LauncherNavigationController.m
   LauncherNewsViewController.m
@@ -207,6 +211,7 @@ target_link_libraries(AngelAuraAmethyst
   "-framework IOKit"
   "-framework QuartzCore"
   "-framework UIKit"
+  "-framework ImageIO"
   "-framework UniformTypeIdentifiers"
   "-framework UnzipKit"
   "-framework WebKit"

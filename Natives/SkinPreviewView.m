@@ -15,8 +15,10 @@ typedef struct { CGFloat x, y, z; } SkinPoint;
 @implementation SkinFace
 @end
 
-@interface SkinPreviewView ()
+@interface SkinPreviewView () <UIGestureRecognizerDelegate>
 @property CGFloat startAngle;
+@property(nonatomic,strong) UIButton *rotateLeftButton;
+@property(nonatomic,strong) UIButton *rotateRightButton;
 @end
 @implementation SkinPreviewView
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -32,8 +34,35 @@ typedef struct { CGFloat x, y, z; } SkinPoint;
     self.opaque = NO;
     self.contentMode = UIViewContentModeRedraw;
     _rotationAngle = -0.4;
-    [self addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(pan:)]];
-    [self addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(flip)]];
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(pan:)];
+    pan.delegate = self; [self addGestureRecognizer:pan];
+    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(flip)];
+    tap.delegate = self; [self addGestureRecognizer:tap];
+    self.rotateLeftButton = [self rotationButton:@"chevron.left" label:@"Rotate skin left" action:@selector(rotateLeft)];
+    self.rotateRightButton = [self rotationButton:@"chevron.right" label:@"Rotate skin right" action:@selector(rotateRight)];
+}
+- (UIButton *)rotationButton:(NSString *)symbol label:(NSString *)label action:(SEL)action {
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+    [button setImage:[UIImage systemImageNamed:symbol] forState:UIControlStateNormal];
+    button.accessibilityLabel = label;
+    button.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
+    button.layer.cornerRadius = 22;
+    [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:button]; return button;
+}
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGFloat y = MAX(0,(self.bounds.size.height-44)/2);
+    self.rotateLeftButton.frame = CGRectMake(0,y,44,44);
+    self.rotateRightButton.frame = CGRectMake(MAX(0,self.bounds.size.width-44),y,44,44);
+}
+- (void)rotateLeft { self.rotationAngle -= M_PI/8; }
+- (void)rotateRight { self.rotationAngle += M_PI/8; }
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gesture shouldReceiveTouch:(UITouch *)touch {
+    for (UIView *view = touch.view; view && view != self; view = view.superview) {
+        if ([view isKindOfClass:UIControl.class]) return NO;
+    }
+    return YES;
 }
 - (void)setSkinImage:(UIImage *)image { _skinImage = image; [self setNeedsDisplay]; }
 - (void)setCapeImage:(UIImage *)image { _capeImage = image; [self setNeedsDisplay]; }

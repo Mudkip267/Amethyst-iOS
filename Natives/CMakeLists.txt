@@ -221,6 +221,7 @@ target_link_libraries(AngelAuraAmethyst
   "-framework IOKit"
   "-framework QuartzCore"
   "-framework UIKit"
+  "-framework ImageIO"
   "-framework UniformTypeIdentifiers"
   "-framework UnzipKit"
   "-framework WebKit"

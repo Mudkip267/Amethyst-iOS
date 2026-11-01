@@ -1,355 +1,174 @@
 #import "SkinManagerViewController.h"
-#import "SkinPreviewView.h"
 #import "SkinEditorViewController.h"
-#import "LauncherPreferences.h"
-#import "utils.h"
+#import "SkinUI.h"
 #import <objc/runtime.h>
 
 @interface SkinManagerViewController ()
-
-@property (nonatomic, strong) SkinPreviewView *mainPreviewView;
-@property (nonatomic, strong) UILabel *usernameLabel;
-@property (nonatomic, strong) UIButton *btnChangeCape;
-@property (nonatomic, strong) UIButton *btnApply;
-@property (nonatomic, strong) UIScrollView *rightScrollView;
-@property (nonatomic, strong) UIView *savedSkinsContainer;
-@property (nonatomic, strong) UIView *defaultSkinsContainer;
-
-@property (nonatomic, strong) SkinItem *currentActiveSkin;
-
+@property UIScrollView *scroll;
+@property UIView *previewPanel;
+@property UIView *grid;
+@property SkinPreviewView *preview;
+@property UILabel *accountLabel;
+@property UILabel *statusLabel;
+@property UIButton *editButton;
+@property UIButton *applyButton;
+@property UIButton *reloadButton;
+@property SkinItem *selection;
+@property BOOL busy;
+@property BOOL profileLoaded;
+@property CGFloat gridWidth;
 @end
-
 @implementation SkinManagerViewController
-
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = localize(@"skin.manager.title", @"Skins");
-    self.view.backgroundColor = [UIColor colorWithRed:20/255.0 green:20/255.0 blue:26/255.0 alpha:1.0];
-
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(actionDone)];
-
-    if (!self.currentAccountUsername || self.currentAccountUsername.length == 0) {
-        self.currentAccountUsername = getPrefObject(@"internal.selected_account") ?: @"default";
-    }
-
-    _currentActiveSkin = [[SkinManager sharedManager] activeSkinForAccount:self.currentAccountUsername];
-
-    [self buildLayout];
-    [self refreshSkinsList];
-    [self updateMainPreview];
+    self.title = @"Skin / Cape";
+    self.view.backgroundColor = UIColor.systemGroupedBackgroundColor;
+    self.view.tintColor = SkinAccent();
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(done)];
+    self.scroll = [UIScrollView new]; [self.view addSubview:self.scroll];
+    self.previewPanel = [UIView new]; [self.scroll addSubview:self.previewPanel];
+    self.grid = [UIView new]; [self.scroll addSubview:self.grid];
+    self.accountLabel = SkinLabel(self.currentAccountUsername, 19); self.accountLabel.textAlignment = NSTextAlignmentCenter;
+    [self.previewPanel addSubview:self.accountLabel];
+    self.preview = [[SkinPreviewView alloc] initWithFrame:CGRectZero]; [self.previewPanel addSubview:self.preview];
+    UILabel *hint = SkinLabel(@"Drag to rotate · Tap to flip", 12); hint.textAlignment = NSTextAlignmentCenter; hint.textColor = UIColor.secondaryLabelColor; hint.tag = 10;
+    [self.previewPanel addSubview:hint];
+    self.editButton = SkinButton(@"Edit skin / Cape", self, @selector(edit)); [self.previewPanel addSubview:self.editButton];
+    self.applyButton = SkinButton(@"Apply to account", self, @selector(apply)); self.applyButton.backgroundColor = SkinAccent(); self.applyButton.tintColor = UIColor.whiteColor;
+    [self.previewPanel addSubview:self.applyButton];
+    self.statusLabel = SkinLabel(@"", 12); self.statusLabel.textAlignment = NSTextAlignmentCenter; [self.previewPanel addSubview:self.statusLabel];
+    self.reloadButton = SkinButton(@"Reload profile", self, @selector(loadProfile)); [self.previewPanel addSubview:self.reloadButton];
+    self.selection = [SkinItem fromDictionary:[[[SkinManager sharedManager] activeSkinForAccount:self.currentAccountUsername] toDictionary]];
+    [self updatePreview]; [self loadProfile];
 }
-
-- (void)buildLayout {
-    CGFloat totalW = self.view.bounds.size.width;
-    CGFloat totalH = self.view.bounds.size.height;
-    CGFloat topBarH = self.navigationController.navigationBar.frame.size.height + 20;
-    if (topBarH < 64) topBarH = 64;
-
-    CGFloat contentH = totalH - topBarH;
-
-    // Responsive: Split into Left Column (35%) and Right Column (65%)
-    CGFloat leftColW = MAX(240, MIN(320, totalW * 0.35));
-    CGFloat rightColX = leftColW + 16;
-    CGFloat rightColW = totalW - rightColX - 16;
-
-    // === LEFT COLUMN ===
-    UIView *leftCol = [[UIView alloc] initWithFrame:CGRectMake(16, topBarH + 10, leftColW, contentH - 20)];
-    leftCol.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleRightMargin;
-    [self.view addSubview:leftCol];
-
-    // Username badge
-    _usernameLabel = [[UILabel alloc] initWithFrame:CGRectMake((leftColW - 160) / 2, 8, 160, 32)];
-    _usernameLabel.text = self.currentAccountUsername;
-    _usernameLabel.textAlignment = NSTextAlignmentCenter;
-    _usernameLabel.textColor = [UIColor whiteColor];
-    _usernameLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightBold];
-    _usernameLabel.backgroundColor = [UIColor colorWithRed:32/255.0 green:32/255.0 blue:42/255.0 alpha:1.0];
-    _usernameLabel.layer.cornerRadius = 8;
-    _usernameLabel.clipsToBounds = YES;
-    [leftCol addSubview:_usernameLabel];
-
-    // Big Character Preview
-    CGFloat previewH = MIN(leftCol.bounds.size.height - 150, 340);
-    _mainPreviewView = [[SkinPreviewView alloc] initWithFrame:CGRectMake(10, 48, leftColW - 20, previewH)];
-    _mainPreviewView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [leftCol addSubview:_mainPreviewView];
-
-    // Drag to rotate label
-    UILabel *rotateHint = [[UILabel alloc] initWithFrame:CGRectMake(10, 48 + previewH + 4, leftColW - 20, 18)];
-    rotateHint.text = localize(@"skin.drag.hint", @"Drag to rotate / Tap to flip");
-    rotateHint.textAlignment = NSTextAlignmentCenter;
-    rotateHint.textColor = [UIColor colorWithWhite:0.5 alpha:1.0];
-    rotateHint.font = [UIFont systemFontOfSize:11 weight:UIFontWeightRegular];
-    [leftCol addSubview:rotateHint];
-
-    // Button Change Cape
-    _btnChangeCape = [UIButton buttonWithType:UIButtonTypeSystem];
-    _btnChangeCape.frame = CGRectMake((leftColW - 140) / 2, 48 + previewH + 28, 140, 36);
-    _btnChangeCape.backgroundColor = [UIColor colorWithRed:35/255.0 green:35/255.0 blue:48/255.0 alpha:1.0];
-    _btnChangeCape.layer.cornerRadius = 8;
-    [_btnChangeCape setTitle:localize(@"skin.change_cape", @"Change cape") forState:UIControlStateNormal];
-    [_btnChangeCape setTitleColor:[UIColor colorWithWhite:0.95 alpha:1.0] forState:UIControlStateNormal];
-    _btnChangeCape.titleLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
-    [_btnChangeCape addTarget:self action:@selector(actionChangeCape) forControlEvents:UIControlEventTouchUpInside];
-    [leftCol addSubview:_btnChangeCape];
-
-    // Button Apply
-    _btnApply = [UIButton buttonWithType:UIButtonTypeCustom];
-    _btnApply.frame = CGRectMake((leftColW - 180) / 2, 48 + previewH + 72, 180, 40);
-    _btnApply.backgroundColor = [UIColor colorWithRed:121/255.0 green:56/255.0 blue:162/255.0 alpha:1.0]; // Amethyst purple
-    _btnApply.layer.cornerRadius = 10;
-    [_btnApply setTitle:localize(@"skin.apply.account", @"Apply to Account") forState:UIControlStateNormal];
-    [_btnApply setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    _btnApply.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightBold];
-    [_btnApply addTarget:self action:@selector(actionApplyToAccount) forControlEvents:UIControlEventTouchUpInside];
-    [leftCol addSubview:_btnApply];
-
-    // === RIGHT COLUMN ===
-    _rightScrollView = [[UIScrollView alloc] initWithFrame:CGRectMake(rightColX, topBarH + 10, rightColW, contentH - 20)];
-    _rightScrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    _rightScrollView.showsVerticalScrollIndicator = YES;
-    [self.view addSubview:_rightScrollView];
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    self.scroll.frame = UIEdgeInsetsInsetRect(self.view.bounds, self.view.safeAreaInsets);
+    CGFloat width = self.scroll.bounds.size.width;
+    BOOL landscape = width > 620;
+    CGFloat left = landscape ? MIN(300, width * 0.35) : width - 32;
+    self.previewPanel.frame = CGRectMake(16, 12, left, 474);
+    self.accountLabel.frame = CGRectMake(0,0,left,28);
+    self.preview.frame = CGRectMake(0,32,left,260);
+    [self.previewPanel viewWithTag:10].frame = CGRectMake(0,296,left,20);
+    self.editButton.frame = CGRectMake(0,324,left,44);
+    self.applyButton.frame = CGRectMake(0,376,left,44);
+    self.statusLabel.frame = CGRectMake(0,428,left,56);
+    self.reloadButton.frame = CGRectMake(0,490,left,44);
+    self.previewPanel.frame = CGRectMake(16,12,left,534);
+    CGFloat x = landscape ? left+32 : 16, y = landscape ? 12 : 566;
+    CGFloat gridWidth = MAX(100, width-x-16);
+    self.grid.frame = CGRectMake(x,y,gridWidth,self.grid.bounds.size.height);
+    if (self.gridWidth != gridWidth) { self.gridWidth = gridWidth; [self rebuildGrid]; }
+    self.scroll.contentSize = CGSizeMake(width, MAX(CGRectGetMaxY(self.grid.frame), CGRectGetMaxY(self.previewPanel.frame))+20);
 }
-
-- (void)updateMainPreview {
-    if (!self.currentActiveSkin) {
-        self.currentActiveSkin = [SkinManager sharedManager].defaultSkins.firstObject;
-    }
-    self.mainPreviewView.skinImage = [self.currentActiveSkin loadImage];
-    self.mainPreviewView.armStyle = self.currentActiveSkin.armStyle;
-    CapeItem *c = [[SkinManager sharedManager] capeForId:self.currentActiveSkin.capeId];
-    self.mainPreviewView.capeImage = [c loadImage];
-    self.usernameLabel.text = self.currentAccountUsername;
+- (void)setWorking:(BOOL)working {
+    self.busy = working; self.applyButton.enabled = !working && self.profileLoaded; self.editButton.enabled = !working;
+    self.reloadButton.enabled = !working; self.grid.userInteractionEnabled = !working;
+    self.navigationItem.rightBarButtonItem.enabled = !working;
+    self.modalInPresentation = working; self.navigationController.modalInPresentation = working;
 }
-
-- (void)refreshSkinsList {
-    for (UIView *v in self.rightScrollView.subviews) {
-        [v removeFromSuperview];
-    }
-
-    CGFloat contentW = self.rightScrollView.bounds.size.width;
-    CGFloat curY = 0;
-
-    // --- Section: Saved Skins ---
-    UILabel *lblSaved = [[UILabel alloc] initWithFrame:CGRectMake(8, curY, contentW - 16, 26)];
-    lblSaved.text = localize(@"skin.section.saved", @"Saved skins");
-    lblSaved.textColor = [UIColor colorWithWhite:0.9 alpha:1.0];
-    lblSaved.font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
-    [self.rightScrollView addSubview:lblSaved];
-    curY += 34;
-
-    CGFloat cardW = 96;
-    CGFloat cardH = 130;
-    CGFloat spacing = 12;
-    int cols = MAX(1, (int)((contentW - 16 + spacing) / (cardW + spacing)));
-    CGFloat startX = 8;
-
-    int itemIdx = 0;
-
-    // 1. "+ Add a skin" card
-    CGFloat cardX = startX + (itemIdx % cols) * (cardW + spacing);
-    CGFloat cardY = curY + (itemIdx / cols) * (cardH + spacing);
-
-    UIButton *addCard = [UIButton buttonWithType:UIButtonTypeCustom];
-    addCard.frame = CGRectMake(cardX, cardY, cardW, cardH);
-    addCard.backgroundColor = [UIColor colorWithRed:28/255.0 green:28/255.0 blue:36/255.0 alpha:1.0];
-    addCard.layer.cornerRadius = 10;
-    addCard.layer.borderWidth = 1.0;
-    addCard.layer.borderColor = [UIColor colorWithRed:44/255.0 green:44/255.0 blue:56/255.0 alpha:1.0].CGColor;
-
-    UILabel *plusIcon = [[UILabel alloc] initWithFrame:CGRectMake(0, 32, cardW, 36)];
-    plusIcon.text = @"+";
-    plusIcon.textAlignment = NSTextAlignmentCenter;
-    plusIcon.textColor = [UIColor colorWithWhite:0.6 alpha:1.0];
-    plusIcon.font = [UIFont systemFontOfSize:32 weight:UIFontWeightLight];
-    [addCard addSubview:plusIcon];
-
-    UILabel *addText = [[UILabel alloc] initWithFrame:CGRectMake(4, 72, cardW - 8, 20)];
-    addText.text = localize(@"skin.add.skin", @"Add a skin");
-    addText.textAlignment = NSTextAlignmentCenter;
-    addText.textColor = [UIColor colorWithWhite:0.7 alpha:1.0];
-    addText.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
-    [addCard addSubview:addText];
-
-    [addCard addTarget:self action:@selector(actionOpenSkinEditor) forControlEvents:UIControlEventTouchUpInside];
-    [self.rightScrollView addSubview:addCard];
-    itemIdx++;
-
-    // 2. User's saved skins
-    NSArray<SkinItem *> *saved = [SkinManager sharedManager].savedSkins;
-    for (SkinItem *skin in saved) {
-        cardX = startX + (itemIdx % cols) * (cardW + spacing);
-        cardY = curY + (itemIdx / cols) * (cardH + spacing);
-
-        UIView *card = [self createSkinCardWithSkin:skin frame:CGRectMake(cardX, cardY, cardW, cardH)];
-        [self.rightScrollView addSubview:card];
-        itemIdx++;
-    }
-
-    curY += ((itemIdx + cols - 1) / cols) * (cardH + spacing) + 20;
-
-    // --- Section: Default Skins ---
-    UILabel *lblDefault = [[UILabel alloc] initWithFrame:CGRectMake(8, curY, contentW - 16, 26)];
-    lblDefault.text = localize(@"skin.section.default", @"Default skins");
-    lblDefault.textColor = [UIColor colorWithWhite:0.9 alpha:1.0];
-    lblDefault.font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
-    [self.rightScrollView addSubview:lblDefault];
-    curY += 34;
-
-    itemIdx = 0;
-    NSArray<SkinItem *> *defaults = [SkinManager sharedManager].defaultSkins;
-    for (SkinItem *skin in defaults) {
-        cardX = startX + (itemIdx % cols) * (cardW + spacing);
-        cardY = curY + (itemIdx / cols) * (cardH + spacing);
-
-        UIView *card = [self createSkinCardWithSkin:skin frame:CGRectMake(cardX, cardY, cardW, cardH)];
-        [self.rightScrollView addSubview:card];
-        itemIdx++;
-    }
-
-    curY += ((itemIdx + cols - 1) / cols) * (cardH + spacing) + 30;
-    self.rightScrollView.contentSize = CGSizeMake(contentW, curY);
-}
-
-- (UIView *)createSkinCardWithSkin:(SkinItem *)skin frame:(CGRect)frame {
-    UIView *card = [[UIView alloc] initWithFrame:frame];
-    card.backgroundColor = [UIColor colorWithRed:28/255.0 green:28/255.0 blue:36/255.0 alpha:1.0];
-    card.layer.cornerRadius = 10;
-    card.clipsToBounds = YES;
-
-    BOOL isSelected = [skin.skinId isEqualToString:self.currentActiveSkin.skinId];
-    if (isSelected) {
-        // Highlight active skin with green or Amethyst border
-        card.layer.borderWidth = 2.0;
-        card.layer.borderColor = [UIColor colorWithRed:16/255.0 green:185/255.0 blue:129/255.0 alpha:1.0].CGColor;
-    } else {
-        card.layer.borderWidth = 1.0;
-        card.layer.borderColor = [UIColor colorWithRed:44/255.0 green:44/255.0 blue:56/255.0 alpha:1.0].CGColor;
-    }
-
-    // Mini Preview View
-    SkinPreviewView *miniPreview = [[SkinPreviewView alloc] initWithFrame:CGRectMake(8, 8, frame.size.width - 16, 92)];
-    miniPreview.userInteractionEnabled = NO;
-    miniPreview.skinImage = [skin loadImage];
-    miniPreview.armStyle = skin.armStyle;
-    CapeItem *c = [[SkinManager sharedManager] capeForId:skin.capeId];
-    miniPreview.capeImage = [c loadImage];
-    [card addSubview:miniPreview];
-
-    // Label Name
-    UILabel *nameLabel = [[UILabel alloc] initWithFrame:CGRectMake(4, frame.size.height - 24, frame.size.width - 8, 18)];
-    nameLabel.text = skin.name;
-    nameLabel.textAlignment = NSTextAlignmentCenter;
-    nameLabel.textColor = isSelected ? [UIColor colorWithRed:16/255.0 green:185/255.0 blue:129/255.0 alpha:1.0] : [UIColor colorWithWhite:0.8 alpha:1.0];
-    nameLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
-    [card addSubview:nameLabel];
-
-    // Tap button covering card
-    UIButton *tapBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-    tapBtn.frame = card.bounds;
-    objc_setAssociatedObject(tapBtn, "skin_target", skin, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    [tapBtn addTarget:self action:@selector(actionSelectSkinCard:) forControlEvents:UIControlEventTouchUpInside];
-    [card addSubview:tapBtn];
-
-    // Delete button for custom skins
-    if (skin.isCustom) {
-        UIButton *delBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-        delBtn.frame = CGRectMake(frame.size.width - 24, 4, 20, 20);
-        delBtn.backgroundColor = [UIColor colorWithWhite:0 alpha:0.5];
-        delBtn.layer.cornerRadius = 10;
-        [delBtn setTitle:@"✕" forState:UIControlStateNormal];
-        [delBtn setTitleColor:[UIColor colorWithWhite:0.8 alpha:1.0] forState:UIControlStateNormal];
-        delBtn.titleLabel.font = [UIFont systemFontOfSize:10 weight:UIFontWeightBold];
-        objc_setAssociatedObject(delBtn, "skin_delete", skin, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [delBtn addTarget:self action:@selector(actionDeleteSkin:) forControlEvents:UIControlEventTouchUpInside];
-        [card addSubview:delBtn];
-    }
-
-    return card;
-}
-
-- (void)actionSelectSkinCard:(UIButton *)sender {
-    SkinItem *skin = objc_getAssociatedObject(sender, "skin_target");
-    if (!skin) return;
-
-    self.currentActiveSkin = skin;
-    [self updateMainPreview];
-    [self refreshSkinsList];
-}
-
-- (void)actionDeleteSkin:(UIButton *)sender {
-    SkinItem *skin = objc_getAssociatedObject(sender, "skin_delete");
-    if (!skin) return;
-
-    UIAlertController *confirm = [UIAlertController alertControllerWithTitle:localize(@"skin.delete.title", @"Delete skin")
-                                                                     message:localize(@"skin.delete.confirm", @"Are you sure you want to delete this custom skin?")
-                                                              preferredStyle:UIAlertControllerStyleAlert];
-    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"Delete", @"Delete") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
-        [[SkinManager sharedManager] deleteCustomSkin:skin];
-        if ([self.currentActiveSkin.skinId isEqualToString:skin.skinId]) {
-            self.currentActiveSkin = [SkinManager sharedManager].defaultSkins.firstObject;
-        }
-        [self updateMainPreview];
-        [self refreshSkinsList];
-    }]];
-    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", @"Cancel") style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:confirm animated:YES completion:nil];
-}
-
-- (void)actionOpenSkinEditor {
-    SkinEditorViewController *editor = [[SkinEditorViewController alloc] init];
+- (void)loadProfile {
+    if (self.busy) return;
+    self.profileLoaded = NO; [self setWorking:YES]; self.statusLabel.text = @"Loading your skin and owned capes…";
     __weak typeof(self) weakSelf = self;
-    editor.whenSkinAdded = ^(SkinItem *newSkin) {
-        weakSelf.currentActiveSkin = newSkin;
-        [weakSelf updateMainPreview];
-        [weakSelf refreshSkinsList];
-    };
-    [self presentViewController:editor animated:YES completion:nil];
+    [[SkinManager sharedManager] fetchProfile:^(SkinItem *skin, NSError *error) {
+        typeof(self) self = weakSelf; if (!self) return;
+        self.profileLoaded = !error; [self setWorking:NO];
+        self.statusLabel.text = error ? error.localizedDescription : @"Choose a skin, then apply to your account.";
+        if (skin) self.selection = skin;
+        [self updatePreview]; [self rebuildGrid];
+    }];
 }
-
-- (void)actionChangeCape {
-    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:localize(@"skin.change_cape", @"Change cape")
-                                                                   message:nil
-                                                            preferredStyle:UIAlertControllerStyleActionSheet];
-
-    NSArray<CapeItem *> *capes = [SkinManager sharedManager].availableCapes;
-    for (CapeItem *c in capes) {
-        NSString *title = [c.capeId isEqualToString:@"none"] ? localize(@"skin.cape.none", @"Use default cape") : c.name;
-        [sheet addAction:[UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            self.currentActiveSkin.capeId = c.capeId;
-            [[SkinManager sharedManager] saveConfig];
-            [self updateMainPreview];
-            [self refreshSkinsList];
-        }]];
+- (void)updatePreview {
+    self.preview.skinImage = [self.selection loadImage]; self.preview.armStyle = self.selection.armStyle;
+    self.preview.capeImage = [[[SkinManager sharedManager] capeForId:self.selection.capeId] loadImage];
+}
+- (void)rebuildGrid {
+    if (self.gridWidth <= 0) return;
+    for (UIView *view in self.grid.subviews) [view removeFromSuperview];
+    CGFloat width = self.gridWidth, gap = 12;
+    NSInteger columns = MAX(2, (NSInteger)((width+gap)/144));
+    CGFloat cardWidth = (width - gap*(columns-1))/columns, cardHeight = cardWidth*1.35+30;
+    CGFloat y = 0;
+    SkinManager *manager = [SkinManager sharedManager];
+    NSMutableArray *saved = [NSMutableArray arrayWithObject:NSNull.null];
+    for (SkinItem *skin in manager.savedSkins) if (!skin.replacementSlot.length) [saved addObject:skin];
+    NSMutableArray *defaults = [NSMutableArray array];
+    for (SkinItem *base in manager.defaultSkins) {
+        SkinItem *shown = base;
+        for (SkinItem *custom in manager.savedSkins) if ([custom.replacementSlot isEqual:base.skinId]) { shown = custom; break; }
+        [defaults addObject:shown];
     }
-
-    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", @"Cancel") style:UIAlertActionStyleCancel handler:nil]];
-    sheet.popoverPresentationController.sourceView = self.btnChangeCape;
-    sheet.popoverPresentationController.sourceRect = self.btnChangeCape.bounds;
-    [self presentViewController:sheet animated:YES completion:nil];
-}
-
-- (void)actionApplyToAccount {
-    [[SkinManager sharedManager] setActiveSkin:self.currentActiveSkin forAccount:self.currentAccountUsername];
-
-    if (self.whenSkinChanged) {
-        self.whenSkinChanged(self.currentActiveSkin);
+    NSArray *sections = @[saved,defaults];
+    for (NSInteger section = 0; section < 2; section++) {
+        UILabel *title = SkinLabel(section == 0 ? @"Saved skins" : @"Default skins", 20);
+        title.frame = CGRectMake(0,y,width,28); [self.grid addSubview:title]; y += 38;
+        NSArray *items = sections[section];
+        for (NSInteger index = 0; index < items.count; index++) {
+            CGRect frame = CGRectMake((index%columns)*(cardWidth+gap), y+(index/columns)*(cardHeight+gap), cardWidth,cardHeight);
+            if (items[index] == NSNull.null) {
+                UIButton *add = SkinButton(@"＋ Add skin", self, @selector(add)); add.frame = frame;
+                add.titleLabel.numberOfLines = 2; [self.grid addSubview:add]; continue;
+            }
+            SkinItem *skin = items[index];
+            UIButton *card = SkinButton(@"", self, @selector(select:)); card.frame = frame;
+            card.layer.borderWidth = [skin.skinId isEqual:self.selection.skinId] ? 2 : 0;
+            card.layer.borderColor = SkinAccent().CGColor; card.accessibilityLabel = skin.name;
+            objc_setAssociatedObject(card, @selector(select:), skin, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            SkinPreviewView *model = [[SkinPreviewView alloc] initWithFrame:CGRectZero]; model.skinImage = [skin loadImage]; model.armStyle = skin.armStyle;
+            UIImageView *thumbnail = [[UIImageView alloc] initWithImage:[model generateThumbnailWithSize:CGSizeMake(cardWidth-12,cardHeight-36)]];
+            thumbnail.frame = CGRectMake(6,4,cardWidth-12,cardHeight-36); thumbnail.contentMode = UIViewContentModeScaleAspectFit;
+            [card addSubview:thumbnail];
+            UILabel *name = SkinLabel(skin.name,13); name.textAlignment = NSTextAlignmentCenter; name.frame = CGRectMake(4,cardHeight-30,cardWidth-8,26); [card addSubview:name];
+            [self.grid addSubview:card];
+            if (skin.isCustom) {
+                UIButton *remove = SkinButton(@"×", self, @selector(remove:)); remove.frame = CGRectMake(CGRectGetMaxX(frame)-44,frame.origin.y,44,44);
+                remove.accessibilityLabel = [@"Delete " stringByAppendingString:skin.name];
+                objc_setAssociatedObject(remove,@selector(remove:),skin,OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self.grid addSubview:remove];
+            }
+        }
+        y += ((items.count+columns-1)/columns)*(cardHeight+gap)+20;
     }
-
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:localize(@"Success", @"Success")
-                                                                   message:localize(@"skin.applied.msg", @"Skin and cape updated successfully for this account!")
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:localize(@"OK", @"OK") style:UIAlertActionStyleDefault handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    CGRect frame = self.grid.frame; frame.size.height = y; self.grid.frame = frame; [self.view setNeedsLayout];
 }
-
-- (void)actionDone {
-    // Automatically apply before closing if needed
-    [[SkinManager sharedManager] setActiveSkin:self.currentActiveSkin forAccount:self.currentAccountUsername];
-    if (self.whenSkinChanged) {
-        self.whenSkinChanged(self.currentActiveSkin);
-    }
-    [self dismissViewControllerAnimated:YES completion:nil];
+- (void)select:(UIButton *)button {
+    SkinItem *skin = objc_getAssociatedObject(button,@selector(select:));
+    NSString *cape = self.selection.capeId;
+    self.selection = [SkinItem fromDictionary:skin.toDictionary]; self.selection.capeId = cape ?: @"none";
+    [self updatePreview]; [self rebuildGrid];
 }
-
+- (void)openEditor:(BOOL)importing {
+    SkinEditorViewController *editor = [SkinEditorViewController new];
+    editor.skinToEdit = [SkinItem fromDictionary:self.selection.toDictionary]; editor.importOnOpen = importing;
+    __weak typeof(self) weakSelf = self;
+    editor.whenSkinAdded = ^(SkinItem *skin) { weakSelf.selection = skin; [weakSelf updatePreview]; [weakSelf rebuildGrid]; };
+    UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:editor];
+    navigation.modalPresentationStyle = UIModalPresentationPageSheet;
+    [self presentViewController:navigation animated:YES completion:nil];
+}
+- (void)edit { [self openEditor:NO]; }
+- (void)add { [self openEditor:YES]; }
+- (void)remove:(UIButton *)button {
+    SkinItem *skin = objc_getAssociatedObject(button,@selector(remove:));
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Delete saved skin?" message:@"This removes the local copy. Your Minecraft account will keep its current skin." preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Delete" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+        [[SkinManager sharedManager] deleteCustomSkin:skin];
+        if ([self.selection.skinId isEqual:skin.skinId]) self.selection = [SkinItem fromDictionary:[SkinManager sharedManager].defaultSkins.firstObject.toDictionary];
+        [self updatePreview]; [self rebuildGrid];
+    }]]; [self presentViewController:alert animated:YES completion:nil];
+}
+- (void)apply {
+    if (self.busy || !self.profileLoaded) return;
+    [self setWorking:YES]; self.statusLabel.text = @"Updating Minecraft account…";
+    SkinItem *selection = [SkinItem fromDictionary:self.selection.toDictionary];
+    [[SkinManager sharedManager] applyOnlineSkin:selection completion:^(NSError *error) {
+        [self setWorking:NO]; self.statusLabel.text = error ? error.localizedDescription : @"Skin and cape updated. Rejoin your world to see the change.";
+        if (error) { SkinAlert(self,@"Could not finish updating",error.localizedDescription); return; }
+        [[SkinManager sharedManager] setActiveSkin:selection forAccount:self.currentAccountUsername];
+        if (self.whenSkinChanged) self.whenSkinChanged(selection);
+    }];
+}
+- (void)done { if (!self.busy) [self dismissViewControllerAnimated:YES completion:nil]; }
 @end

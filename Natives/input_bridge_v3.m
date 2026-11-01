@@ -659,11 +659,19 @@ void CallbackBridge_nativeSendCursorPos(char event, CGFloat x, CGFloat y) {
 
 char getKeyModifiers(int key, int action) {
     static char currMods;
+    static unsigned int heldShiftKeys;
+    if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) {
+        unsigned int bit = key == GLFW_KEY_LEFT_SHIFT ? 1u : 2u;
+        if (action) {
+            heldShiftKeys |= bit;
+        } else {
+            heldShiftKeys &= ~bit;
+        }
+        currMods = heldShiftKeys ? (currMods | GLFW_MOD_SHIFT) : (currMods & ~GLFW_MOD_SHIFT);
+        return currMods;
+    }
     char mod;
     switch (key) {
-        case GLFW_KEY_LEFT_SHIFT:
-            mod = GLFW_MOD_SHIFT;
-            break;
         case GLFW_KEY_LEFT_CONTROL:
             mod = GLFW_MOD_CONTROL;
             break;

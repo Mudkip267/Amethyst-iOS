@@ -1,253 +1,131 @@
 #import "SkinPreviewView.h"
+#import <math.h>
 
-@interface SkinPreviewView () {
-    UIPanGestureRecognizer *_panGesture;
-    UITapGestureRecognizer *_tapGesture;
-    CGFloat _startAngle;
-}
+// Orthographic textured cuboids: no animation loop, GPU context or web service.
+// Cards are raster snapshots; only the large preview redraws while dragging.
+typedef struct { CGFloat x, y, z; } SkinPoint;
+@interface SkinFace : NSObject
+@property UIImage *texture;
+@property CGPoint a;
+@property CGPoint b;
+@property CGPoint c;
+@property CGFloat depth;
+@property CGFloat shade;
+@end
+@implementation SkinFace
 @end
 
+@interface SkinPreviewView ()
+@property CGFloat startAngle;
+@end
 @implementation SkinPreviewView
-
 - (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (self) {
-        [self commonInit];
-    }
+    if ((self = [super initWithFrame:frame])) [self commonInit];
     return self;
 }
-
 - (instancetype)initWithCoder:(NSCoder *)coder {
-    self = [super initWithCoder:coder];
-    if (self) {
-        [self commonInit];
-    }
+    if ((self = [super initWithCoder:coder])) [self commonInit];
     return self;
 }
-
 - (void)commonInit {
-    self.backgroundColor = [UIColor clearColor];
+    self.backgroundColor = UIColor.clearColor;
     self.opaque = NO;
-    self.userInteractionEnabled = YES;
     self.contentMode = UIViewContentModeRedraw;
-    self.clipsToBounds = NO;
-    _armStyle = SkinArmStyleWide;
-    _isBackView = NO;
-    _rotationAngle = 0.0;
-
-    _panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
-    [self addGestureRecognizer:_panGesture];
-
-    _tapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
-    [self addGestureRecognizer:_tapGesture];
+    _rotationAngle = -0.4;
+    [self addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(pan:)]];
+    [self addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(flip)]];
 }
-
-- (void)setSkinImage:(UIImage *)skinImage {
-    _skinImage = skinImage;
-    [self setNeedsDisplay];
+- (void)setSkinImage:(UIImage *)image { _skinImage = image; [self setNeedsDisplay]; }
+- (void)setCapeImage:(UIImage *)image { _capeImage = image; [self setNeedsDisplay]; }
+- (void)setArmStyle:(SkinArmStyle)style { _armStyle = style; [self setNeedsDisplay]; }
+- (void)setRotationAngle:(CGFloat)angle { _rotationAngle = angle; [self setNeedsDisplay]; }
+- (void)setIsBackView:(BOOL)back { _isBackView = back; self.rotationAngle = back ? M_PI - 0.4 : -0.4; }
+- (void)resetView { self.isBackView = NO; }
+- (void)flip { self.isBackView = !self.isBackView; }
+- (void)pan:(UIPanGestureRecognizer *)gesture {
+    if (gesture.state == UIGestureRecognizerStateBegan) self.startAngle = self.rotationAngle;
+    self.rotationAngle = self.startAngle + [gesture translationInView:self].x / 100.0;
 }
-
-- (void)setCapeImage:(UIImage *)capeImage {
-    _capeImage = capeImage;
-    [self setNeedsDisplay];
+static SkinPoint SkinRotate(SkinPoint p, CGFloat angle) {
+    CGFloat x = p.x * cos(angle) + p.z * sin(angle);
+    CGFloat z = -p.x * sin(angle) + p.z * cos(angle);
+    return (SkinPoint){x, p.y * cos(0.15) - z * sin(0.15), p.y * sin(0.15) + z * cos(0.15)};
 }
-
-- (void)setArmStyle:(SkinArmStyle)armStyle {
-    _armStyle = armStyle;
-    [self setNeedsDisplay];
-}
-
-- (void)setIsBackView:(BOOL)isBackView {
-    _isBackView = isBackView;
-    _rotationAngle = isBackView ? M_PI : 0.0;
-    [self setNeedsDisplay];
-}
-
-- (void)setRotationAngle:(CGFloat)rotationAngle {
-    _rotationAngle = rotationAngle;
-    // Normalize to 0 .. 2*PI
-    while (_rotationAngle < 0) _rotationAngle += 2 * M_PI;
-    while (_rotationAngle >= 2 * M_PI) _rotationAngle -= 2 * M_PI;
-    _isBackView = (_rotationAngle > M_PI_2 && _rotationAngle < 3 * M_PI_2);
-    [self setNeedsDisplay];
-}
-
-- (void)resetView {
-    _rotationAngle = 0.0;
-    _isBackView = NO;
-    [self setNeedsDisplay];
-}
-
-- (void)handlePan:(UIPanGestureRecognizer *)pan {
-    if (pan.state == UIGestureRecognizerStateBegan) {
-        _startAngle = self.rotationAngle;
-    } else if (pan.state == UIGestureRecognizerStateChanged) {
-        CGPoint translation = [pan translationInView:self];
-        CGFloat deltaAngle = (translation.x / self.bounds.size.width) * (2 * M_PI);
-        self.rotationAngle = _startAngle + deltaAngle;
-    }
-}
-
-- (void)handleTap:(UITapGestureRecognizer *)tap {
-    // Tap flips front / back
-    self.isBackView = !self.isBackView;
-}
-
-static CGImageRef sliceImage(CGImageRef src, CGRect rect) {
-    if (!src) return NULL;
-    return CGImageCreateWithImageInRect(src, rect);
-}
-
-static void drawSubRect(CGContextRef ctx, CGImageRef img, CGRect srcRect, CGRect dstRect) {
-    if (!img) return;
-    CGImageRef sub = sliceImage(img, srcRect);
-    if (!sub) return;
-    CGContextSaveGState(ctx);
-    // CoreGraphics flips Y
-    CGContextTranslateCTM(ctx, dstRect.origin.x, dstRect.origin.y + dstRect.size.height);
-    CGContextScaleCTM(ctx, 1.0, -1.0);
-    CGContextDrawImage(ctx, CGRectMake(0, 0, dstRect.size.width, dstRect.size.height), sub);
-    CGContextRestoreGState(ctx);
-    CGImageRelease(sub);
-}
-
-- (void)drawRect:(CGRect)rect {
-    CGContextRef ctx = UIGraphicsGetCurrentContext();
-    if (!ctx) return;
-
-    CGContextSetInterpolationQuality(ctx, kCGInterpolationNone);
-
-    CGFloat viewW = self.bounds.size.width;
-    CGFloat viewH = self.bounds.size.height;
-
-    // Character dimensions in Minecraft pixels:
-    // Head: 8 x 8
-    // Body: 8 x 12
-    // Arms: (4 or 3) x 12
-    // Legs: 4 x 12 each -> 8 x 12 total
-    // Total width = 8 (body) + 2 * 4 (arms) = 16 (or 14 for slim)
-    // Total height = 8 (head) + 12 (body) + 12 (legs) = 32
-    CGFloat armW_mc = (self.armStyle == SkinArmStyleSlim) ? 3.0 : 4.0;
-    CGFloat totalW_mc = 8.0 + armW_mc * 2.0;
-    CGFloat totalH_mc = 32.0;
-
-    CGFloat scale = MIN((viewW * 0.75) / totalW_mc, (viewH * 0.78) / totalH_mc);
-    if (scale <= 0) scale = 4.0;
-
-    CGFloat charW = totalW_mc * scale;
-    CGFloat charH = totalH_mc * scale;
-    CGFloat startX = (viewW - charW) / 2.0;
-    CGFloat startY = (viewH - charH) / 2.0 - 5.0;
-
-    // Draw circular ground shadow
-    CGContextSaveGState(ctx);
-    CGContextSetFillColorWithColor(ctx, [UIColor colorWithWhite:0 alpha:0.25].CGColor);
-    CGRect shadowRect = CGRectMake(startX - 10, startY + charH - 4, charW + 20, 16);
-    CGContextFillEllipseInRect(ctx, shadowRect);
-    CGContextRestoreGState(ctx);
-
-    CGImageRef skinCG = self.skinImage.CGImage;
-    CGImageRef capeCG = self.capeImage.CGImage;
-
-    CGFloat armW_pt = armW_mc * scale;
-    CGFloat bodyW_pt = 8.0 * scale;
-    CGFloat headSize_pt = 8.0 * scale;
-    CGFloat torsoH_pt = 12.0 * scale;
-    CGFloat legH_pt = 12.0 * scale;
-    CGFloat legW_pt = 4.0 * scale;
-
-    CGFloat headX = startX + armW_pt;
-    CGFloat headY = startY;
-    CGFloat bodyX = startX + armW_pt;
-    CGFloat bodyY = startY + headSize_pt;
-    CGFloat leftArmX = startX;
-    CGFloat rightArmX = startX + armW_pt + bodyW_pt;
-    CGFloat armY = bodyY;
-    CGFloat legY = bodyY + torsoH_pt;
-    CGFloat leftLegX = bodyX;
-    CGFloat rightLegX = bodyX + legW_pt;
-
-    BOOL back = self.isBackView;
-
-    // If back view and cape is equipped: draw cape first or over body
-    if (back && capeCG) {
-        // Cape back is 10 x 16 (mc pixels)
-        CGFloat capeW_pt = 10.0 * scale;
-        CGFloat capeH_pt = 16.0 * scale;
-        CGFloat capeX = startX + (charW - capeW_pt) / 2.0;
-        CGFloat capeY = bodyY + 1.0 * scale;
-        drawSubRect(ctx, capeCG, CGRectMake(1, 1, 10, 16), CGRectMake(capeX, capeY, capeW_pt, capeH_pt));
-    }
-
-    if (skinCG) {
-        if (!back) {
-            // FRONT VIEW
-            // 1. Legs
-            // Right leg front: (4, 20, 4, 12), pants: (4, 36, 4, 12)
-            drawSubRect(ctx, skinCG, CGRectMake(4, 20, 4, 12), CGRectMake(leftLegX, legY, legW_pt, legH_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(4, 36, 4, 12), CGRectMake(leftLegX, legY, legW_pt, legH_pt));
-
-            // Left leg front: (20, 52, 4, 12), pants: (4, 52, 4, 12)
-            drawSubRect(ctx, skinCG, CGRectMake(20, 52, 4, 12), CGRectMake(rightLegX, legY, legW_pt, legH_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(4, 52, 4, 12), CGRectMake(rightLegX, legY, legW_pt, legH_pt));
-
-            // 2. Torso
-            // Front: (20, 20, 8, 12), jacket: (20, 36, 8, 12)
-            drawSubRect(ctx, skinCG, CGRectMake(20, 20, 8, 12), CGRectMake(bodyX, bodyY, bodyW_pt, torsoH_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(20, 36, 8, 12), CGRectMake(bodyX, bodyY, bodyW_pt, torsoH_pt));
-
-            // 3. Right Arm (character's right, screen's left)
-            CGFloat armSliceW = (self.armStyle == SkinArmStyleSlim) ? 3 : 4;
-            drawSubRect(ctx, skinCG, CGRectMake(44, 20, armSliceW, 12), CGRectMake(leftArmX, armY, armW_pt, torsoH_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(44, 36, armSliceW, 12), CGRectMake(leftArmX, armY, armW_pt, torsoH_pt));
-
-            // 4. Left Arm (character's left, screen's right)
-            drawSubRect(ctx, skinCG, CGRectMake(36, 52, armSliceW, 12), CGRectMake(rightArmX, armY, armW_pt, torsoH_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(52, 52, armSliceW, 12), CGRectMake(rightArmX, armY, armW_pt, torsoH_pt));
-
-            // 5. Head & Hat
-            // Head front: (8, 8, 8, 8), Hat front: (40, 8, 8, 8)
-            drawSubRect(ctx, skinCG, CGRectMake(8, 8, 8, 8), CGRectMake(headX, headY, headSize_pt, headSize_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(40, 8, 8, 8), CGRectMake(headX, headY, headSize_pt, headSize_pt));
-        } else {
-            // BACK VIEW
-            // 1. Legs back
-            drawSubRect(ctx, skinCG, CGRectMake(12, 20, 4, 12), CGRectMake(rightLegX, legY, legW_pt, legH_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(12, 36, 4, 12), CGRectMake(rightLegX, legY, legW_pt, legH_pt));
-
-            drawSubRect(ctx, skinCG, CGRectMake(28, 52, 4, 12), CGRectMake(leftLegX, legY, legW_pt, legH_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(12, 52, 4, 12), CGRectMake(leftLegX, legY, legW_pt, legH_pt));
-
-            // 2. Torso back (if no cape or partially visible)
-            if (!capeCG) {
-                drawSubRect(ctx, skinCG, CGRectMake(32, 20, 8, 12), CGRectMake(bodyX, bodyY, bodyW_pt, torsoH_pt));
-                drawSubRect(ctx, skinCG, CGRectMake(32, 36, 8, 12), CGRectMake(bodyX, bodyY, bodyW_pt, torsoH_pt));
-            }
-
-            // 3. Arms back
-            CGFloat armSliceW = (self.armStyle == SkinArmStyleSlim) ? 3 : 4;
-            drawSubRect(ctx, skinCG, CGRectMake(52, 20, armSliceW, 12), CGRectMake(rightArmX, armY, armW_pt, torsoH_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(52, 36, armSliceW, 12), CGRectMake(rightArmX, armY, armW_pt, torsoH_pt));
-
-            drawSubRect(ctx, skinCG, CGRectMake(44, 52, armSliceW, 12), CGRectMake(leftArmX, armY, armW_pt, torsoH_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(60, 52, armSliceW, 12), CGRectMake(leftArmX, armY, armW_pt, torsoH_pt));
-
-            // 4. Head back
-            drawSubRect(ctx, skinCG, CGRectMake(24, 8, 8, 8), CGRectMake(headX, headY, headSize_pt, headSize_pt));
-            drawSubRect(ctx, skinCG, CGRectMake(56, 8, 8, 8), CGRectMake(headX, headY, headSize_pt, headSize_pt));
+- (void)addBox:(NSMutableArray<SkinFace *> *)faces image:(UIImage *)image
+        origin:(CGPoint)uv size:(SkinPoint)size center:(SkinPoint)center expansion:(CGFloat)extra {
+    if (!image.CGImage) return;
+    CGFloat x = size.x / 2 + extra, y = size.y / 2 + extra, z = size.z / 2 + extra;
+    // Vertices in texture order: top left, top right, bottom left.
+    SkinPoint vertices[6][3] = {
+        {{-x,y,z},{x,y,z},{-x,-y,z}}, {{-x,y,-z},{-x,y,z},{-x,-y,-z}},
+        {{x,y,-z},{-x,y,-z},{x,-y,-z}}, {{x,y,z},{x,y,-z},{x,-y,z}},
+        {{-x,y,-z},{x,y,-z},{-x,y,z}}, {{-x,-y,z},{x,-y,z},{-x,-y,-z}}
+    };
+    SkinPoint normals[6] = {{0,0,1},{-1,0,0},{0,0,-1},{1,0,0},{0,1,0},{0,-1,0}};
+    CGFloat u = uv.x, v = uv.y, w = size.x, h = size.y, d = size.z;
+    CGRect crops[6] = {CGRectMake(u+d,v+d,w,h), CGRectMake(u,v+d,d,h),
+        CGRectMake(u+2*d+w,v+d,w,h), CGRectMake(u+d+w,v+d,d,h),
+        CGRectMake(u+d,v,w,d), CGRectMake(u+d+w,v,w,d)};
+    for (int i = 0; i < 6; i++) {
+        SkinPoint normal = SkinRotate(normals[i], self.rotationAngle);
+        if (normal.z <= 0) continue;
+        CGRect crop = crops[i];
+        if (CGRectGetMaxX(crop) > CGImageGetWidth(image.CGImage) || CGRectGetMaxY(crop) > CGImageGetHeight(image.CGImage)) continue;
+        CGImageRef piece = CGImageCreateWithImageInRect(image.CGImage, crop);
+        if (!piece) continue;
+        SkinFace *face = [SkinFace new];
+        face.texture = [UIImage imageWithCGImage:piece];
+        CGImageRelease(piece);
+        SkinPoint p[3];
+        for (int j = 0; j < 3; j++) {
+            SkinPoint q = vertices[i][j]; q.x += center.x; q.y += center.y; q.z += center.z;
+            p[j] = SkinRotate(q, self.rotationAngle);
         }
+        face.a = CGPointMake(p[0].x, -p[0].y); face.b = CGPointMake(p[1].x, -p[1].y); face.c = CGPointMake(p[2].x, -p[2].y);
+        face.depth = (p[1].z + p[2].z) / 2;
+        face.shade = i == 4 ? 0 : (i == 0 || i == 2 ? 0.04 : 0.20);
+        [faces addObject:face];
     }
 }
-
-- (UIImage *)generateThumbnailWithSize:(CGSize)size {
-    UIGraphicsBeginImageContextWithOptions(size, NO, 0.0);
-    CGRect prevBounds = self.bounds;
-    self.bounds = CGRectMake(0, 0, size.width, size.height);
-    [self.layer renderInContext:UIGraphicsGetCurrentContext()];
-    UIImage *thumbnail = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    self.bounds = prevBounds;
-    return thumbnail;
+- (void)drawModelInSize:(CGSize)size {
+    if (!self.skinImage) return;
+    NSMutableArray<SkinFace *> *faces = [NSMutableArray array];
+    BOOL modern = CGImageGetHeight(self.skinImage.CGImage) >= 64;
+    CGFloat arm = self.armStyle == SkinArmStyleSlim && modern ? 3 : 4;
+    SkinPoint dimensions[] = {{8,8,8},{8,12,4},{arm,12,4},{arm,12,4},{4,12,4},{4,12,4}};
+    SkinPoint centers[] = {{0,28,0},{0,18,0},{-4-arm/2,18,0},{4+arm/2,18,0},{-2,6,0},{2,6,0}};
+    CGPoint base[] = {{0,0},{16,16},{40,16},modern ? CGPointMake(32,48) : CGPointMake(40,16),{0,16},modern ? CGPointMake(16,48) : CGPointMake(0,16)};
+    CGPoint overlay[] = {{32,0},{16,32},{40,32},{48,48},{0,32},{0,48}};
+    for (int i = 0; i < 6; i++) {
+        [self addBox:faces image:self.skinImage origin:base[i] size:dimensions[i] center:centers[i] expansion:0];
+        if (modern || i == 0) [self addBox:faces image:self.skinImage origin:overlay[i] size:dimensions[i] center:centers[i] expansion:i == 0 ? 0.5 : 0.25];
+    }
+    if (self.capeImage) [self addBox:faces image:self.capeImage origin:CGPointZero size:(SkinPoint){10,16,1} center:(SkinPoint){0,16,-3} expansion:0];
+    [faces sortUsingComparator:^NSComparisonResult(SkinFace *a, SkinFace *b) {
+        return a.depth < b.depth ? NSOrderedAscending : (a.depth > b.depth ? NSOrderedDescending : NSOrderedSame);
+    }];
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    CGContextSaveGState(context);
+    CGFloat scale = MIN(size.width / 27, size.height / 37);
+    CGContextTranslateCTM(context, size.width / 2, size.height / 2 + 16 * scale);
+    CGContextScaleCTM(context, scale, scale);
+    CGContextSetInterpolationQuality(context, kCGInterpolationNone);
+    for (SkinFace *face in faces) {
+        CGContextSaveGState(context);
+        CGAffineTransform t = CGAffineTransformMake(face.b.x-face.a.x, face.b.y-face.a.y,
+            face.c.x-face.a.x, face.c.y-face.a.y, face.a.x, face.a.y);
+        CGContextConcatCTM(context, t);
+        [face.texture drawInRect:CGRectMake(0,0,1,1)];
+        CGContextRestoreGState(context);
+    }
+    CGContextRestoreGState(context);
 }
-
+- (void)drawRect:(CGRect)rect { [self drawModelInSize:self.bounds.size]; }
+- (UIImage *)generateThumbnailWithSize:(CGSize)size {
+    UIGraphicsBeginImageContextWithOptions(size, NO, 0);
+    [self drawModelInSize:size];
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
+}
 @end

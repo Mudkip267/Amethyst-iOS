@@ -338,10 +338,10 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
         allocmem = roundf((NSProcessInfo.processInfo.physicalMemory >> 20) * autoRatio);
     } else {
         allocmem = getPrefInt(@"java.allocated_memory");
-        if (!getEntitlementValue(@"com.apple.private.memorystatus") && allocmem > 1100) {
-            NSLog(@"[JavaLauncher] Warning: RAM allocation %d MB exceeds safe limit on non-jailbroken device without memorystatus entitlement. Capping to 1100 MB to prevent Jetsam SIGKILL.", allocmem);
-            allocmem = 1100;
-        }
+    }
+    if (!getEntitlementValue(@"com.apple.private.memorystatus") && allocmem > 1100) {
+        NSLog(@"[JavaLauncher] Limiting Java heap from %d MB to 1100 MB to reserve native/graphics memory", allocmem);
+        allocmem = 1100;
     }
     NSLog(@"[JavaLauncher] Max RAM allocation is set to %d MB", allocmem);
     if (!validateVirtualMemorySpace(allocmem)) {
@@ -384,15 +384,17 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
     margv[++margc] = "-XX:+UseG1GC";
     margv[++margc] = "-XX:InitiatingHeapOccupancyPercent=40";
     margv[++margc] = "-XX:G1ReservePercent=15";
-    margv[++margc] = "-XX:G1PeriodicGCInterval=2000";
-    margv[++margc] = "-XX:+G1PeriodicGCInvokesConcurrent";
-    margv[++margc] = "-XX:G1PeriodicGCSysLoadThreshold=0.0";
+    if (minVersion >= 12) {
+        margv[++margc] = "-XX:G1PeriodicGCInterval=2000";
+        margv[++margc] = "-XX:+G1PeriodicGCInvokesConcurrent";
+        margv[++margc] = "-XX:G1PeriodicGCSysLoadThreshold=0.0";
+    }
     margv[++margc] = "-XX:G1HeapWastePercent=5";
     margv[++margc] = "-XX:G1MixedGCCountTarget=4";
     margv[++margc] = "-XX:+ExplicitGCInvokesConcurrent";
     margv[++margc] = "-XX:MinHeapFreeRatio=20";
     margv[++margc] = "-XX:MaxHeapFreeRatio=40";
-    margv[++margc] = "-XX:MaxMetaspaceSize=384M";
+    // Let metaspace grow with installed mods; a fixed cap can cause avoidable OOMs.
     
     NSString *frameworksPath = [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks"];
     NSString *lwjglNativeSubfolder = lwjgl.nativeSubfolder;

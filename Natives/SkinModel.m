@@ -35,13 +35,13 @@
 
 + (instancetype)fromDictionary:(NSDictionary *)dict {
     SkinItem *item = [[SkinItem alloc] init];
-    item.skinId = dict[@"id"];
-    item.replacementSlot = dict[@"replacementSlot"];
-    item.name = dict[@"name"];
-    item.armStyle = [dict[@"armStyle"] integerValue];
-    item.skinPath = dict[@"skinPath"];
-    item.capeId = dict[@"capeId"];
-    item.isCustom = [dict[@"isCustom"] boolValue];
+    item.skinId = [dict[@"id"] isKindOfClass:NSString.class] ? dict[@"id"] : NSUUID.UUID.UUIDString;
+    item.replacementSlot = [dict[@"replacementSlot"] isKindOfClass:NSString.class] ? dict[@"replacementSlot"] : @"";
+    item.name = [dict[@"name"] isKindOfClass:NSString.class] ? dict[@"name"] : @"Skin";
+    item.armStyle = [dict[@"armStyle"] isKindOfClass:NSNumber.class] && [dict[@"armStyle"] integerValue] == 1 ? SkinArmStyleSlim : SkinArmStyleWide;
+    item.skinPath = [dict[@"skinPath"] isKindOfClass:NSString.class] ? dict[@"skinPath"] : @"";
+    item.capeId = [dict[@"capeId"] isKindOfClass:NSString.class] ? dict[@"capeId"] : @"none";
+    item.isCustom = [dict[@"isCustom"] isKindOfClass:NSNumber.class] && [dict[@"isCustom"] boolValue];
     return item;
 }
 

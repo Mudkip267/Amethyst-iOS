@@ -232,13 +232,7 @@ static GameSurfaceView* pojavWindow;
         GCMouse* mouse = note.object;
         [self registerMouseCallbacks:mouse];
         self.mousePointerView.hidden = isGrabbing || !virtualMouseEnabled;
-        [self.memoryDiagnosticTimer invalidate];
-    [self logMemoryDiagnostics:@"surface appeared"];
-    __weak typeof(self) weakSelf = self;
-    self.memoryDiagnosticTimer = [NSTimer scheduledTimerWithTimeInterval:15 repeats:YES block:^(NSTimer *timer) {
-        [weakSelf logMemoryDiagnostics:@"sample"];
-    }];
-    [self setNeedsUpdateOfPrefersPointerLocked];
+        [self setNeedsUpdateOfPrefersPointerLocked];
     }];
     self.mouseDisconnectCallback = [[NSNotificationCenter defaultCenter] addObserverForName:GCMouseDidDisconnectNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         NSLog(@"Input: Mouse disconnected!");
@@ -302,6 +296,12 @@ static GameSurfaceView* pojavWindow;
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
+    [self.memoryDiagnosticTimer invalidate];
+    [self logMemoryDiagnostics:@"surface appeared"];
+    __weak typeof(self) weakSelf = self;
+    self.memoryDiagnosticTimer = [NSTimer scheduledTimerWithTimeInterval:15 repeats:YES block:^(NSTimer *timer) {
+        [weakSelf logMemoryDiagnostics:@"sample"];
+    }];
     [self setNeedsUpdateOfPrefersPointerLocked];
 }
 

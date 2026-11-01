@@ -366,8 +366,16 @@
     // TODO: Add caching mechanism for profile pictures
     NSURL *url = [NSURL URLWithString:[selected[@"profilePicURL"] stringByReplacingOccurrencesOfString:@"\\/" withString:@"/"]];
     UIImage *placeholder = [UIImage imageNamed:@"DefaultAccount"];
-    [self.accountButton setImageForState:UIControlStateNormal withURL:url placeholderImage:placeholder];
-    [self.accountButton.imageView setImageWithURL:url placeholderImage:placeholder];
+    if (url.isFileURL) {
+        [self.accountButton cancelImageDownloadTaskForState:UIControlStateNormal];
+        [self.accountButton.imageView cancelImageDownloadTask];
+        UIImage *image = [UIImage imageWithContentsOfFile:url.path] ?: placeholder;
+        [self.accountButton setImage:image forState:UIControlStateNormal];
+        self.accountButton.imageView.image = image;
+    } else {
+        [self.accountButton setImageForState:UIControlStateNormal withURL:url placeholderImage:placeholder];
+        [self.accountButton.imageView setImageWithURL:url placeholderImage:placeholder];
+    }
     [self.accountButton sizeToFit];
 
     // Update profiles and local version list if needed

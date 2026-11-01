@@ -16,10 +16,11 @@ with (work/'CapeLayout.app/Info.plist').open('wb') as f:
  plistlib.dump(dict(CFBundleIdentifier='org.amethyst.cape-layout-test',CFBundleExecutable='CapeLayout',CFBundleName='CapeLayout',CFBundlePackageType='APPL',CFBundleVersion='1',CFBundleShortVersionString='1.0',LSRequiresIPhoneOS=True,MinimumOSVersion='17.0'),f)
 PY
 sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
-xcrun clang -fobjc-arc -fblocks -arch "$(uname -m)" -mios-simulator-version-min=17.0 -isysroot "$sdk" -framework UIKit -framework Foundation -I "$work" "$root/tests/cape-layout/main.m" -o "$app/CapeLayout"
+xcrun clang -fobjc-arc -fblocks -arch "$(uname -m)" -mios-simulator-version-min=17.0 -isysroot "$sdk" -framework UIKit -framework Foundation -framework CoreGraphics -I "$work" "$root/tests/cape-layout/main.m" -o "$app/CapeLayout"
 udid="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for k,v in d["devices"].items() if "iOS" in k for x in v if "iPhone" in x["name"]))')"
 xcrun simctl boot "$udid" || true
 xcrun simctl bootstatus "$udid" -b
+codesign --force --sign - "$app"
 xcrun simctl install "$udid" "$app"
 xcrun simctl launch "$udid" org.amethyst.cape-layout-test
 container="$(xcrun simctl get_app_container "$udid" org.amethyst.cape-layout-test data)"

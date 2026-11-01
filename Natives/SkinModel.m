@@ -110,6 +110,8 @@ static NSData *SkinRequest(NSString *url, NSString *method, NSData *body, NSStri
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
     request.HTTPMethod = method;
     request.timeoutInterval = 25;
+    request.cachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+    if (token.length) [request setValue:@"no-cache" forHTTPHeaderField:@"Cache-Control"];
     request.HTTPBody = body;
     if (type) [request setValue:type forHTTPHeaderField:@"Content-Type"];
     if (token.length) [request setValue:[@"Bearer " stringByAppendingString:token] forHTTPHeaderField:@"Authorization"];
@@ -134,6 +136,22 @@ static NSString *SkinToken(BaseAuthenticator *account) {
     NSString *token = account.authData[@"accessToken"];
     if (!token.length && [account isKindOfClass:MicrosoftAuthenticator.class] && [account.authData[@"xuid"] isKindOfClass:NSString.class]) token = [MicrosoftAuthenticator tokenDataOfProfile:account.authData[@"xuid"]][@"accessToken"];
     return [token isEqualToString:@"offline"] ? nil : token;
+}
+static NSDictionary *SkinActiveEntry(id profile, NSString *key) {
+    if (![profile isKindOfClass:NSDictionary.class]) return nil;
+    id entries = profile[key];
+    if (![entries isKindOfClass:NSArray.class]) return nil;
+    for (id entry in entries) {
+        if ([entry isKindOfClass:NSDictionary.class] && [entry[@"state"] isEqual:@"ACTIVE"]) return entry;
+    }
+    return nil;
+}
+static NSString *SkinTextureIdentity(NSDictionary *entry) {
+    id url = entry[@"url"];
+    if (![url isKindOfClass:NSString.class]) return nil;
+    NSURLComponents *parts = [NSURLComponents componentsWithString:url];
+    if (![parts.host.lowercaseString isEqual:@"textures.minecraft.net"] || ![parts.path hasPrefix:@"/texture/"]) return nil;
+    return parts.path; // Texture hash is stable across http/https and CDN cache headers.
 }
 static UIImage *SkinTexture(id url) {
     if (![url isKindOfClass:NSString.class]) return nil;
@@ -200,6 +218,7 @@ static UIImage *SkinTexture(id url) {
     NSData *png = UIImagePNGRepresentation([skin loadImage]);
     if (!png) { completion([NSError errorWithDomain:@"MinecraftProfile" code:0 userInfo:@{NSLocalizedDescriptionKey:@"Select a valid skin image."}]); return; }
     NSString *capeId = skin.capeId ?: @"none";
+    NSString *variant = skin.armStyle == SkinArmStyleSlim ? @"SLIM" : @"CLASSIC";
     if (![capeId isEqual:@"none"] && ![self capeForId:capeId]) { completion([NSError errorWithDomain:@"MinecraftProfile" code:0 userInfo:@{NSLocalizedDescriptionKey:@"Reload your profile and select an owned cape."}]); return; }
     NSString *boundary = NSUUID.UUID.UUIDString;
     NSMutableData *body = [NSMutableData data];
@@ -208,12 +227,32 @@ static UIImage *SkinTexture(id url) {
     [body appendData:[[NSString stringWithFormat:@"\r\n--%@--\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *error = nil;
-        SkinRequest(@"https://api.minecraftservices.com/minecraft/profile/skins", @"POST", body, [@"multipart/form-data; boundary=" stringByAppendingString:boundary], token, &error);
+        NSData *uploaded = SkinRequest(@"https://api.minecraftservices.com/minecraft/profile/skins", @"POST", body, [@"multipart/form-data; boundary=" stringByAppendingString:boundary], token, &error);
+        id uploadedProfile = uploaded.length ? [NSJSONSerialization JSONObjectWithData:uploaded options:0 error:nil] : nil;
+        NSString *expectedTexture = SkinTextureIdentity(SkinActiveEntry(uploadedProfile,@"skins"));
         if (!error) {
             BOOL hide = [capeId isEqual:@"none"];
             NSData *capeBody = hide ? nil : [NSJSONSerialization dataWithJSONObject:@{@"capeId":capeId} options:0 error:nil];
             SkinRequest(@"https://api.minecraftservices.com/minecraft/profile/capes/active", hide ? @"DELETE" : @"PUT", capeBody, @"application/json", token, &error);
             if (error) error = [NSError errorWithDomain:error.domain code:error.code userInfo:@{NSLocalizedDescriptionKey:[@"Skin uploaded, but cape update failed: " stringByAppendingString:error.localizedDescription]}];
+        }
+        if (!error) {
+            BOOL confirmed = NO;
+            // Retry only reads: never repeat an upload or cape change automatically.
+            for (NSInteger attempt = 0; attempt < 3; attempt++) {
+                if (attempt) [NSThread sleepForTimeInterval:attempt == 1 ? 0.4 : 1.0];
+                NSData *data = SkinRequest(@"https://api.minecraftservices.com/minecraft/profile", @"GET", nil, nil, token, &error);
+                if (error) break;
+                id profile = data.length ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+                NSDictionary *activeSkin = SkinActiveEntry(profile,@"skins");
+                NSDictionary *activeCape = SkinActiveEntry(profile,@"capes");
+                // Both arrays must exist: a malformed response is not proof that no cape is active.
+                BOOL valid = [profile isKindOfClass:NSDictionary.class] && [profile[@"skins"] isKindOfClass:NSArray.class] && [profile[@"capes"] isKindOfClass:NSArray.class];
+                BOOL capeMatches = [capeId isEqual:@"none"] ? !activeCape : [activeCape[@"id"] isEqual:capeId];
+                confirmed = valid && expectedTexture.length && [SkinTextureIdentity(activeSkin) isEqual:expectedTexture] && [activeSkin[@"variant"] isEqual:variant] && capeMatches;
+                if (confirmed) break;
+            }
+            if (!confirmed) error = [NSError errorWithDomain:@"MinecraftProfile" code:error ? error.code : 0 userInfo:@{NSLocalizedDescriptionKey:error ? [@"Changes were sent, but the account could not be checked: " stringByAppendingString:error.localizedDescription] : @"Changes were sent, but Minecraft has not confirmed the selected skin and cape. Reload your profile to check before trying again."}];
         }
         dispatch_async(dispatch_get_main_queue(), ^{ NSError *result = error; if (BaseAuthenticator.current != account) result = [NSError errorWithDomain:@"MinecraftProfile" code:0 userInfo:@{NSLocalizedDescriptionKey:@"Account changed while updating. Reload the profile to verify the result."}]; completion(result); });
     });

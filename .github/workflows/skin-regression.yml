@@ -1,0 +1,12 @@
+name: Skin and cape regression
+on:
+  push:
+    branches: ['codex/1.2.0-skin-cape']
+  workflow_dispatch:
+jobs:
+  regression:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test production skin renderer, account updates and editor Save on iPhone simulator
+        run: bash tests/skin-regression/run.sh

@@ -141,8 +141,14 @@
 - (void)openEditor:(BOOL)importing {
     SkinEditorViewController *editor = [SkinEditorViewController new];
     editor.skinToEdit = [SkinItem fromDictionary:self.selection.toDictionary]; editor.importOnOpen = importing;
+    editor.accountUsername = self.currentAccountUsername;
     __weak typeof(self) weakSelf = self;
-    editor.whenSkinAdded = ^(SkinItem *skin) { weakSelf.selection = skin; [weakSelf updatePreview]; [weakSelf rebuildGrid]; };
+    editor.whenSkinAdded = ^(SkinItem *skin) {
+        typeof(self) self = weakSelf; if (!self) return;
+        self.selection = skin; [self updatePreview]; [self rebuildGrid];
+        self.statusLabel.text = @"Skin and cape confirmed on your account. Restart Minecraft to refresh cached textures.";
+        if (self.whenSkinChanged) self.whenSkinChanged(skin);
+    };
     UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:editor];
     navigation.modalPresentationStyle = UIModalPresentationPageSheet;
     [self presentViewController:navigation animated:YES completion:nil];
@@ -164,7 +170,7 @@
     [self setWorking:YES]; self.statusLabel.text = @"Updating Minecraft account…";
     SkinItem *selection = [SkinItem fromDictionary:self.selection.toDictionary];
     [[SkinManager sharedManager] applyOnlineSkin:selection completion:^(NSError *error) {
-        [self setWorking:NO]; self.statusLabel.text = error ? error.localizedDescription : @"Skin and cape updated. Rejoin your world to see the change.";
+        [self setWorking:NO]; self.statusLabel.text = error ? error.localizedDescription : @"Skin and cape confirmed on your account. Restart Minecraft to refresh cached textures.";
         if (error) { SkinAlert(self,@"Could not finish updating",error.localizedDescription); return; }
         [[SkinManager sharedManager] setActiveSkin:selection forAccount:self.currentAccountUsername];
         if (self.whenSkinChanged) self.whenSkinChanged(selection);

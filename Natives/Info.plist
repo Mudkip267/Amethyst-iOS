@@ -127,6 +127,8 @@
 	<array>
 		<string>_altserver._tcp</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a Minecraft skin image from your photo library.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Angel Aura Amethyst uses the local network to find and communicate with AltServer and LAN servers.</string>
 	<key>NSMicrophoneUsageDescription</key>

@@ -1,0 +1,301 @@
+commit 7e91ff1f40f51d62a269e5da6321eac4b953156a
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Thu Oct 29 00:49:14 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Thu Oct 29 00:49:14 2026 -0600
+
+    Localize missing strings across language catalogs
+
+commit 79b53476d2df0685c0111bb62e20b51dbe893ff9
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Wed Oct 28 23:24:48 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Wed Oct 28 23:24:48 2026 -0600
+
+    Fix(KosmicKrisp:) Add barrier for meta blit
+
+commit 4d99e7b655f6a3a5d4307c0ce02c13bcf6d8fcc8
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Wed Oct 28 21:25:42 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Wed Oct 28 21:25:42 2026 -0600
+
+    Fix(KosmicKrisp:) Fix barrier visibilityOptions for iOS 26.5+
+
+commit e248a40f90455f2ab40be47be56a4f9b0e11d872
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Wed Oct 28 19:54:41 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Wed Oct 28 19:54:41 2026 -0600
+
+    Chore(deps): Update MoltenVK, SPRIV-Cross, and KosmicKrisp
+
+commit 2346a3789f1b69f08d8bba06196544911a377dec
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 27 12:53:52 2026 -0600
+Commit:     GitHub <noreply@github.com>
+CommitDate: Tue Oct 27 12:53:52 2026 -0600
+
+    Add exception handling classes to Narrator interface
+    
+    Signed-off-by: kutta <taylenwells2026@icloud.com>
+
+commit 04267eb077a1b6c288448fe1fd6f5f8ad40b7575
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Sun Oct 25 12:22:31 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Sun Oct 25 12:22:31 2026 -0600
+
+    Fix: (Multi) Voice Chat mic, avatar URL, SDL shift state and Sodium LWJGL check #31 #37 #48 #51
+
+commit 18c5b7a734e51d932d37e556a7df1b775f87983e
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Sun Oct 18 19:39:04 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Sun Oct 18 19:39:04 2026 -0600
+
+    fix crash
+
+commit 1b7976ecb04fa09fe3fa92ee4c24e8933fa4a2da
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Sun Oct 18 18:58:23 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Sun Oct 18 18:58:23 2026 -0600
+
+    Fix: (Input) Remove SDL's native keyboard handler to avoid double key events #41
+
+commit f6db3db7bb24aa98ebe884932e16cfd29a7ffcc8
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Sun Oct 18 18:56:19 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Sun Oct 18 18:56:19 2026 -0600
+
+    Fix: (Renderer) Only default preferredGraphicsBackend on first options.txt
+
+commit d559f627df808527edd96a17165e7ef48417de44
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Sat Oct 17 22:51:32 2026 +0000
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Sat Oct 17 22:51:32 2026 +0000
+
+    Fix: (Input) Stop duplicate typing with on sceen keyboard and release cancelled keys #41
+
+commit c0a324bb4f16e8473e24ab5a0a008a71087f0689
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Sat Oct 17 22:48:56 2026 +0000
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Sat Oct 17 22:48:56 2026 +0000
+
+    Fix: (Renderer) Keep in game graphics API choice #42
+
+commit 5b1377e2183951b4d237bbc72b275692853efa64
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Sat Oct 17 18:23:51 2026 +0000
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Sat Oct 17 18:23:51 2026 +0000
+
+    Perf: (Renderer) cap KosmicKrisp shader cache size and advertise Geometry Shader
+
+commit c8e24c72096aa17b5fc13727c8899f523c9db1ef
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Sat Oct 17 12:19:37 2026 -0600
+Commit:     GitHub <noreply@github.com>
+CommitDate: Sat Oct 17 12:19:37 2026 -0600
+
+    Feat: (Content) Modrinth mod browser and installed mods manager (#43)
+
+commit ea406c8d17048c5249a4f0f583100b584e606563
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Sat Oct 17 00:23:43 2026 +0000
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Sat Oct 17 00:24:37 2026 +0000
+
+    Feat: (Renderer) Default to Vulkan backend on 26.2+
+
+commit 24dbfd48df9a7b09d9855fc39752c4bb278dde04
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Fri Oct 16 15:25:09 2026 -0600
+Commit:     GitHub <noreply@github.com>
+CommitDate: Fri Oct 16 15:25:09 2026 -0600
+
+    Fix: (Input) Physical keyboard double typing under SDL3 #41
+    
+    Signed-off-by: kutta <taylenwells2026@icloud.com>
+
+commit f16a6f86c774c6518343a79f1657f378cc334fce
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Fri Oct 16 02:04:11 2026 -0600
+Commit:     GitHub <noreply@github.com>
+CommitDate: Fri Oct 16 02:04:11 2026 -0600
+
+    Delete Nightly workflow
+    
+    Signed-off-by: kutta <taylenwells2026@icloud.com>
+
+commit 2c05779a7a277cea03b5349ffcdaa23a905723cc
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Fri Oct 16 02:01:37 2026 -0600
+Commit:     GitHub <noreply@github.com>
+CommitDate: Fri Oct 16 02:01:37 2026 -0600
+
+    Feat: (Renderer) Implement experimental KosmicKrisp Renderer
+    
+    * Feat: (Renderer) Add KosmicKrisp Renderer
+    
+    * Feat: Bundle Vulkan loader shim for KosmicKrisp
+    
+    * Chore: (Launcher) Remove popups and verbose graphics logging
+    
+    * Fix: (Account) Use undashed UUID for avatar #37
+    
+    * Fix: (Profiles) Remove duplicate swipe so delete works again
+    
+    * Chore: (localization) Refine KosmicKrisp and MoltenVK wording in Localizable.strings
+
+commit f6dc58fe05c4414bbc2f789098b2b19b04955c89
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Wed Oct 14 04:00:33 2026 +0000
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Wed Oct 14 04:00:33 2026 +0000
+
+    Feat: Add MoltenVK renderer along side many other improvements
+
+commit 55657320a9e1ed00d5bbbb06f1d00bd3ad350a55
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 18:53:19 2026 -0600
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Tue Oct 13 18:53:19 2026 -0600
+
+    restore original SurfaceViewController input/touch logic and keep the selector-based observer fix intact
+
+commit ec0114353c14d9c42bd33a7a567c458e4e5c0054
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 18:48:10 2026 -0600
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Tue Oct 13 18:48:10 2026 -0600
+
+    fix(native): avoid ObjC block-based notification observers (use selectors) and include renderer_info in egl_bridge to fix CI parse errors and missing symbols
+
+commit a1a54ed0d2a19b8006d34bc75425c966cfbc083a
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 17:35:50 2026 -0600
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Tue Oct 13 17:35:50 2026 -0600
+
+    fix: include renderer_info.h to declare ame_renderer functions (fix implicit-declaration errors)
+
+commit 97c481a938859b8bf8c2137794e835bf542d6ebd
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 16:36:18 2026 -0600
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Tue Oct 13 16:36:18 2026 -0600
+
+    Fix: avoid undefined native symbols in GameSurfaceView by using profile string to detect Zink renderer
+
+commit 37d0093c244c23b3ba45aebda163e0d599c7bdb0
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 16:07:41 2026 -0600
+Commit:     GitHub <noreply@github.com>
+CommitDate: Tue Oct 13 16:07:41 2026 -0600
+
+    Fix missing newline in renderer_info.h
+    
+    Add missing newline at end of file
+    
+    Signed-off-by: kutta <taylenwells2026@icloud.com>
+
+commit 9be4b77ea5a53db7d693fec723ef3bb8c98e828f
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 15:09:49 2026 -0600
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Tue Oct 13 15:09:49 2026 -0600
+
+    Rename isMobileGLRenderer to ame_renderer_is_mobile_gl in renderer_info.h and keep utils.h wrapper
+
+commit fc7c547eec3c6c3290da88084f0f9d41d47bfaf1
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 08:18:28 2026 -0600
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Tue Oct 13 08:18:28 2026 -0600
+
+    fix: include renderer_info.h so ame_renderer_t and helpers are defined in gl_bridge.m
+
+commit 895c0a9176fdc71e39e5aa66c8dc04fbcba7f60c
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 07:59:49 2026 -0600
+Commit:     GitHub <noreply@github.com>
+CommitDate: Tue Oct 13 07:59:49 2026 -0600
+
+    Add LWJGL versions to lwjgl_versions.txt
+    
+    Added LWJGL versions and their corresponding native subfolders.
+    
+    Signed-off-by: kutta <taylenwells2026@icloud.com>
+
+commit c5df82a0a24acf9bc940dae4eacb66abfc1bb068
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 13:40:34 2026 +0000
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Tue Oct 13 13:41:17 2026 +0000
+
+    lwjgl overhaul
+
+commit d1a38ea43be9258c995d88649c00680f554fadf2
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 02:16:05 2026 -0600
+Commit:     GitHub <noreply@github.com>
+CommitDate: Tue Oct 13 02:16:05 2026 -0600
+
+    Update MOLTENVK_LIBRARY path in Makefile
+    
+    Signed-off-by: kutta <taylenwells2026@icloud.com>
+
+commit cfcac18d090749a241a9b7e1aa4e5f1cb7e3333c
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Tue Oct 13 07:34:09 2026 +0000
+Commit:     kutta <taylenwells2026@icloud.com>
+CommitDate: Tue Oct 13 07:34:09 2026 +0000
+
+    improvements
+
+commit 09925ba6d7b4011feddbd22712b4d6763fa08dbc
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Mon Oct 12 16:21:54 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Mon Oct 12 16:21:54 2026 -0600
+
+    remove vsync toggle
+
+commit 9b3e4d90a5926be401498881b59fcf6153acd19c
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Mon Oct 12 10:22:16 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Mon Oct 12 10:22:16 2026 -0600
+
+    Remove low latency and update mobileglues and mobilegl
+
+commit ce39277b932cf177096473c398ed6a07ce75932f
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Sun Oct 11 20:51:19 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Sun Oct 11 20:51:55 2026 -0600
+
+    MobileGL improvements
+
+commit aaa00e6d0f42f258f19383dc4d5ec013344310ef
+Author:     kutta <taylenwells2026@icloud.com>
+AuthorDate: Fri Oct 9 14:44:41 2026 -0600
+Commit:     GitHub <noreply@github.com>
+CommitDate: Fri Oct 9 14:44:41 2026 -0600
+
+    Update submodule URLs in .gitmodules
+    
+    Signed-off-by: kutta <taylenwells2026@icloud.com>
+
+commit 58e24584ea60ef438dedde84c93232987366ffc6
+Author:     taylen-chud <taylenwells2026@icloud.com>
+AuthorDate: Fri Oct 9 14:25:35 2026 -0600
+Commit:     taylen-chud <taylenwells2026@icloud.com>
+CommitDate: Fri Oct 9 14:27:13 2026 -0600
+
+    Fix mcopt mod and other minor fixes

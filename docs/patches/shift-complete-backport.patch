@@ -1,0 +1,64 @@
+diff --git a/JavaApp/src/lwjgl/org/lwjgl/sdl/SDL3Bridge.java b/JavaApp/src/lwjgl/org/lwjgl/sdl/SDL3Bridge.java
+index 8125fda..8ceaa1a 100644
+--- a/JavaApp/src/lwjgl/org/lwjgl/sdl/SDL3Bridge.java
++++ b/JavaApp/src/lwjgl/org/lwjgl/sdl/SDL3Bridge.java
+@@ -477,6 +477,7 @@ final class SDL3Bridge {
+         if (scancode == 0) {
+             return;
+         }
++        syncKeyboardState(scancode, down, glfwMods);
+ 
+         try (MemoryStack stack = MemoryStack.stackPush()) {
+             SDL_Event ev = SDL_Event.calloc(stack);
+@@ -488,6 +489,24 @@ final class SDL3Bridge {
+         }
+     }
+ 
++    private static ByteBuffer keyState;
++
++    private static void syncKeyboardState(int scancode, boolean down, int glfwMods) {
++        try {
++            if (keyState == null) {
++                keyState = SDLKeyboard.SDL_GetKeyboardState();
++            }
++            if (keyState != null && scancode >= 0 && scancode < keyState.capacity()) {
++                keyState.put(scancode, (byte) (down ? 1 : 0));
++            }
++            SDLKeyboard.SDL_SetModState((short) sdlMods(glfwMods));
++        } catch (Throwable t) {
++            if (inputErrors++ < 5) {
++                warn("could not sync SDL keyboard state: " + t);
++            }
++        }
++    }
++
+     private static void onChar(int codepoint) {
+         if (codepoint <= 0 || codepoint > 0x10FFFF) {
+             return;
+diff --git a/Natives/input_bridge_v3.m b/Natives/input_bridge_v3.m
+index 248fb3b..61460cb 100644
+--- a/Natives/input_bridge_v3.m
++++ b/Natives/input_bridge_v3.m
+@@ -634,11 +634,19 @@ void CallbackBridge_nativeSendCursorPos(char event, CGFloat x, CGFloat y) {
+ 
+ char getKeyModifiers(int key, int action) {
+     static char currMods;
++    static unsigned int heldShiftKeys;
++    if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) {
++        unsigned int bit = key == GLFW_KEY_LEFT_SHIFT ? 1u : 2u;
++        if (action) {
++            heldShiftKeys |= bit;
++        } else {
++            heldShiftKeys &= ~bit;
++        }
++        currMods = heldShiftKeys ? (currMods | GLFW_MOD_SHIFT) : (currMods & ~GLFW_MOD_SHIFT);
++        return currMods;
++    }
+     char mod;
+     switch (key) {
+-        case GLFW_KEY_LEFT_SHIFT:
+-            mod = GLFW_MOD_SHIFT;
+-            break;
+         case GLFW_KEY_LEFT_CONTROL:
+             mod = GLFW_MOD_CONTROL;
+             break;

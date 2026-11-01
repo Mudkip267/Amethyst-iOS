@@ -28,6 +28,7 @@
 #include "utils.h"
 
 #include <dlfcn.h>
+#include <mach/mach.h>
 
 int memorystatus_control(uint32_t command, int32_t pid, uint32_t flags, void *buffer, size_t buffersize);
 #define MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT        6
@@ -39,6 +40,7 @@ static GameSurfaceView* pojavWindow;
 }
 
 @property(nonatomic) NSDictionary* metadata;
+@property(nonatomic) NSTimer *memoryDiagnosticTimer;
 
 @property(nonatomic) TrackedTextField *inputTextField;
 @property(nonatomic) NSMutableArray* swipeableButtons;
@@ -65,6 +67,24 @@ static GameSurfaceView* pojavWindow;
 @end
 
 @implementation SurfaceViewController
+
+// These measurements distinguish process memory pressure from Java exceptions.
+- (void)logMemoryDiagnostics:(NSString *)reason {
+    task_vm_info_data_t info = {0};
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count) == KERN_SUCCESS) {
+        NSLog(@"[MemoryDiagnostics] %@ footprint=%llu MiB resident=%llu MiB", reason,
+            (unsigned long long)(info.phys_footprint >> 20), (unsigned long long)(info.resident_size >> 20));
+    }
+}
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    [self.memoryDiagnosticTimer invalidate]; self.memoryDiagnosticTimer = nil;
+}
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning]; [self logMemoryDiagnostics:@"iOS memory warning"];
+}
+- (void)dealloc { [_memoryDiagnosticTimer invalidate]; }
 
 - (instancetype)initWithMetadata:(NSDictionary *)metadata {
     self = [super init];
@@ -212,7 +232,13 @@ static GameSurfaceView* pojavWindow;
         GCMouse* mouse = note.object;
         [self registerMouseCallbacks:mouse];
         self.mousePointerView.hidden = isGrabbing || !virtualMouseEnabled;
-        [self setNeedsUpdateOfPrefersPointerLocked];
+        [self.memoryDiagnosticTimer invalidate];
+    [self logMemoryDiagnostics:@"surface appeared"];
+    __weak typeof(self) weakSelf = self;
+    self.memoryDiagnosticTimer = [NSTimer scheduledTimerWithTimeInterval:15 repeats:YES block:^(NSTimer *timer) {
+        [weakSelf logMemoryDiagnostics:@"sample"];
+    }];
+    [self setNeedsUpdateOfPrefersPointerLocked];
     }];
     self.mouseDisconnectCallback = [[NSNotificationCenter defaultCenter] addObserverForName:GCMouseDidDisconnectNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         NSLog(@"Input: Mouse disconnected!");

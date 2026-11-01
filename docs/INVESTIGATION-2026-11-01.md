@@ -1,0 +1,80 @@
+# Shift, skin/cape and crash investigation — 2026-11-01
+
+Evidence labels apply to every finding below. **verified in source/logs** means inspected code, generated source, archive contents or a recorded check; it does not mean tested on an iPhone. **hypothesis** means a runtime cause or benefit still needing reproduction.
+
+## Revisions and reproduction
+
+- **verified in source/logs:** Fresh investigation clone at `D:/amethyst_debug/Amethyst-shift-investigation`, tag `1.2.0` (`6542ff2`), reported build `20724a217f627d18bc8fb1d5978877d69499b91c`, and upstream main `7e91ff1f40f51d62a269e5da6321eac4b953156a` were inspected. The full requested `git log 1.2.0..main` is [saved here](shift-main-changelog.txt).
+- **verified in source/logs:** The user's fork began at `bcbff3c3`. It already includes upstream fix `04267eb`; the native RIGHT_SHIFT companion patch is new on branch `codex/skins-input-stability`. Old reported build and tag have identical input-bridge files.
+- **verified in source/logs:** Fabric example mod commit `91f19010a4e764f193fe50acfe2c8ee68f1f15cd`, Minecraft 26.3, Loader 0.20.1, Loom 1.19-SNAPSHOT (resolved 1.19.3), Gradle 9.8.2, Java 25.0.4: `gradlew.bat genSources --no-daemon` succeeded. Generated sources are locally extracted under `D:/amethyst_debug/shift-fabric-example/minecraft-sources`.
+
+## Exact input path and failure
+
+- **verified in source/logs:** `Natives/customcontrols/ControlButton.m` handles toggle appearance. `Natives/SurfaceViewController.m`, `executebtn_up:isOutside:`, maintains toggle down/up; `executebtn:withAction:` calls `CallbackBridge_nativeSendKey(keycode,0,held,0)` or `CallbackBridge_nativeSendMouseButton`. Toggle does send a held virtual key.
+- **verified in source/logs:** `Natives/input/KeyboardInput.m` maps physical UIKit HID left/right Shift to GLFW keys. Virtual controls converge on `Natives/input_bridge_v3.m`, `getKeyModifiers` and `CallbackBridge_nativeSendKey`. Native `sdl3_hook.m`, `AmethystSDL3ForwardInput`, invokes Java `SDL3Bridge.onInput(IIIIIFF)V`; `nativeRegisterInput` prints `[SDL3] input bridge active`.
+- **verified in source/logs:** `JavaApp/src/lwjgl/org/lwjgl/sdl/SDL3Bridge.java`, `SCANCODES`, maps GLFW LEFT_SHIFT 340 to SDL scancode 225, RIGHT_SHIFT 344 to 229. `keycodeFor` adds `0x40000000` for these special keys. `onButton` maps GLFW left/right/middle 0/1/2 to SDL 1/3/2.
+- **verified in source/logs:** `sdlMods` translates GLFW Shift `1` to SDL left Shift `1`, Ctrl `2` to `0x40`, Alt `4` to `0x100`, Super `8` to `0x400`; caps and num lock are also translated. SDL right Shift is `2`, aggregate `SDL_KMOD_SHIFT` is `3`. Mapping an aggregate GLFW Shift to SDL's left bit is sufficient for Minecraft's aggregate test.
+- **verified in source/logs:** At tag/reported build, `onKey` sends `SDL_KeyboardEvent.mod` but does not synchronize SDL's keyboard array or global modifiers. SDL explicitly states that [SDL_PushEvent does not update device state](https://wiki.libsdl.org/SDL3/SDL_PushEvent). [SDL_MouseButtonEvent has no modifier field](https://wiki.libsdl.org/SDL3/SDL_MouseButtonEvent).
+- **verified in source/logs:** Upstream [04267eb](https://github.com/Taylen-chud/Amethyst-iOS/commit/04267eb077a1b6c288448fe1fd6f5f8ad40b7575) adds `syncKeyboardState` before queuing the key event: a 1/0 write to the mapped `SDL_GetKeyboardState()` buffer, plus `SDL_SetModState((short)sdlMods(glfwMods))`. This fixes the missing state write in source.
+- **verified in source/logs:** Native `getKeyModifiers` still recognized only LEFT_SHIFT. The new minimal [right-only diff](patches/shift-right-modifier.patch) tracks two held bits; release of one side preserves the other. The [combined backport](patches/shift-complete-backport.patch) includes upstream Java changes for old tag builds; do not reapply that Java part to this current branch.
+- **hypothesis:** The source mismatch explains the supplied Shift symptom on build 20724a2. Actual installed binary contents and the third-party Rebind Quick Swap mod's behavior cannot be inferred solely from the version label.
+
+## Exact Minecraft 26.3 GUI reads
+
+All rows below are **verified in source/logs** from Loom-generated sources, with line numbers referring to that output.
+
+| Class and method | Exact state read / effect |
+| --- | --- |
+| `com.mojang.blaze3d.platform.SDLEventHandler.handleKeyEvent` (95) | Builds `KeyEvent(scancode,key,keyEvent.mod())`. |
+| `SDLEventHandler.handleMouseButtonEvent` (123) | Builds `MouseButtonInfo(buttonEvent.button(), SDLKeyboard.SDL_GetModState())`. |
+| `net.minecraft.client.MouseHandler.onButton(long, MouseButtonInfo, int)` | Builds `MouseButtonEvent(xm,ym,rawButtonInfo)` and dispatches to screen. |
+| `net.minecraft.client.input.MouseButtonInfo` | Record fields `button`, `modifiers`. |
+| `net.minecraft.client.input.MouseButtonEvent.modifiers()` (14) | Returns `buttonInfo().modifiers()`. |
+| `net.minecraft.client.input.InputWithModifiers.hasShiftDown()` (54) | Exactly `(this.modifiers() & 3) != 0`. |
+| `net.minecraft.client.gui.screens.inventory.AbstractContainerScreen.mouseClicked(MouseButtonEvent, boolean)` (318) | `slotId != -999 && event.hasShiftDown()` selects `ContainerInput.QUICK_MOVE`. |
+| `AbstractContainerScreen.mouseReleased(MouseButtonEvent)` (397,433) | Also reads `event.hasShiftDown()`. |
+| `net.minecraft.client.gui.screens.recipebook.RecipeBookComponent.mouseClicked(MouseButtonEvent, boolean)` (337) | Passes `event.hasShiftDown()` to `tryPlaceRecipe`. |
+| `RecipeBookComponent.tryPlaceRecipe(RecipeCollection, RecipeDisplayId, boolean useMaxItems)` (383/390) | Forwards `useMaxItems` to `minecraft.gameMode.handlePlaceRecipe`. |
+| `net.minecraft.world.inventory.AbstractContainerMenu.doClick` (416), `CraftingMenu.quickMoveStack(Player,int)` (110) | QUICK_MOVE repeatedly transfers; crafting result slot is index 0. |
+| `com.mojang.blaze3d.platform.InputConstants.isKeyDown(int)` (218) | Polls `SDL_GetKeyboardState()`. |
+
+- **verified in source/logs:** For virtual LSHIFT on old tag: scancode and key-event modifier are correct, global modifier state is not written; Minecraft mouse modifiers therefore read unsynchronized SDL state. With upstream fix, key down/up synchronize both state stores. For virtual RSHIFT the native mask was zero until this companion patch.
+- **hypothesis:** Very rapid Shift release before a queued mouse event is consumed could still expose event-timing limitations. The upstream implementation writes SDL's const-exposed keyboard buffer; this branch retains that upstream design. Hardware callbacks with explicit nonzero modifiers have a separate path and were not redesigned.
+
+## Existing issues
+
+- **verified in source/logs:** Searched open/closed issues in all three repositories for `shift`, `modifier`, `SDL3`, `26.x`, and `"shift click"`. Counts respectively: Taylen `1/0/1/3/1`; AngelAura `6/2/4/26/4`; Pojav iOS `7/0/0/17/1`. Numeric searches also matched unrelated old log text.
+- **verified in source/logs:** Taylen [#51](https://github.com/Taylen-chud/Amethyst-iOS/issues/51) matches the touch Shift-click failure; reporter confirmed upstream repair October 27. [#18](https://github.com/Taylen-chud/Amethyst-iOS/issues/18) discusses SDL3.
+- **verified in source/logs:** AngelAura [#174](https://github.com/AngelAuraMC/Amethyst-iOS/issues/174) physical quick-move predates 26.3; [#128](https://github.com/AngelAuraMC/Amethyst-iOS/issues/128) asks about Shift-click. [#321](https://github.com/AngelAuraMC/Amethyst-iOS/issues/321) concerns keyboard input after chat on SDL3; [#283](https://github.com/AngelAuraMC/Amethyst-iOS/issues/283) and [#342](https://github.com/AngelAuraMC/Amethyst-iOS/issues/342) concern SDL3 support.
+- **verified in source/logs:** Pojav [#667](https://github.com/PojavLauncherTeam/PojavLauncher_iOS/issues/667) concerns controller key combinations; [#440](https://github.com/PojavLauncherTeam/PojavLauncher_iOS/issues/440) discusses macOS Ctrl-click; [#648](https://github.com/PojavLauncherTeam/PojavLauncher_iOS/issues/648) concerns Shift+W/fullscreen. No SDL3-specific issue returned there.
+- **hypothesis:** Similar symptom wording in these other reports does not establish the same cause.
+
+## Crash archive findings
+
+- **verified in source/logs:** Downloaded `default.zip` to D:, 1,584,030,056 bytes; archive lists 31,848 entries and about 3,838 MiB expanded. Only selected logs/config were extracted for inspection. Original archive and worlds remain intact. The archive itself, raw logs and account data are not committed.
+- **verified in source/logs:** `hs_err_pid14807.log`, October 31, Java 25.0.4: SIGSEGV in `libshaderc.dylib`, `glslang::TParseContext::lValueErrorCheck`, thread `Worker-Main-5`; Java caller `GlslCompiler.compileToSpv` -> `Shaderc.nshaderc_compile_into_spv`. Reported maximum heap `-Xmx1820M`; committed heap about 642 MiB, used about 490 MiB. This is a native crash, not a logged Java heap OOM or proof of Jetsam.
+- **verified in source/logs:** Current launcher already contains `PatchJNAAgent.Synchronizer.synchronizeCompileCalls` to serialize static `nshaderc_compile_*` calls, introduced in `58e24584` October 9, after reported build October 7. `JavaLauncher.m` enables this agent. Minecraft's `GlslCompiler` uses worker compilation and pooled shaderc compiler objects.
+- **hypothesis:** The installed old build may lack that mitigation. Neither native heap corruption, concurrency nor a shader/compiler defect can be distinguished from this stack alone. Confirm the new run prints `PatchJNAAgent: org/lwjgl/util/shaderc/Shaderc - synchronized [...]` before concluding it is active. No new shaderc binary was fabricated or substituted.
+- **verified in source/logs:** `crash-2026-10-29_22.29.27-client.txt`: Distant Horizons initialization fails loading `libzstd-jni_dh-1.5.7-12.dylib`; iOS reports invalid code signature. This concerns a desktop native library on the supplied iOS installation. DH is absent from the archive's current top-level mod list.
+- **verified in source/logs:** October 3 reports on Minecraft 1.21.11: AutoRotate lacks `com.autorotate.core.Executor` / `BlockBreaker`; October 6: AutoRotate config screen dereferences a null toggle key. August report is a mixin transformation failure. These are historical mod failures, not evidence of the current 26.3 portal crash.
+- **verified in source/logs:** March 16 Java 21 reports include a failed native metaspace mmap reservation and an ANGLE/Metal texture upload SIGSEGV. April 7 report is a Java 21 VM startup SIGBUS. Dates/runtimes differ from the current setup.
+- **verified in source/logs:** Ten replay logs record JIT compilation tasks, many with obfuscated game class names. A replay file alone does not identify the portal trigger or prove a current Java 25 compiler defect.
+- **verified in source/logs:** Current instance has `virtualshift-1.0.0.jar` (mixins into input, mouse, keyboard and container classes), C2ME alpha, Sodium, Sodium Extra, MoreCulling, EntityCulling, ImmediatelyFast and other mods. Podium metadata explicitly says it disables Sodium's PojavLauncher check. Settings: render distance 5, simulation distance 12, max FPS 90; several resource packs target 1.21.11 and are listed as incompatible. Archive contains telemetry but no `latest.log` with a world-exit/Nether crash trace.
+- **hypothesis:** Mods, native renderer resources, chunk loading and memory pressure are candidates for world/dimension transition crashes. The available evidence does not identify a single cause or establish that all crashes have been fixed.
+
+## Changes and remaining runtime validation
+
+- **verified in source/logs:** Fixed the auto-memory path bypassing the fork's existing non-entitled 1100 MiB cap, guarded Java 12+ periodic G1 options from older minimum runtimes, and removed the artificial 384 MiB metaspace cap. These are source/config corrections; 1100 MiB is a conservative policy inherited from this fork, not an experimentally proven iOS safety threshold.
+- **hypothesis:** Reserving more native headroom may help transition memory pressure; reducing heap can also expose Java OOMs with a large modpack. A native shader crash is not repaired merely by changing heap size.
+- **verified in source/logs:** `SurfaceViewController.logMemoryDiagnostics:` now records process footprint/resident MiB every 15 seconds while visible, plus `didReceiveMemoryWarning` and surface appearance. Timer uses a weak controller and is invalidated on disappearance/deallocation. This adds evidence rather than asserting a crash cure.
+- **verified in source/logs:** Skin manager now reads Minecraft profile/owned capes, uploads PNG variant/file, and activates or hides the selected owned cape through Minecraft services. Token stays in memory/keychain and is not attached to texture downloads. Expired/offline sessions show an error. Save creates a local draft; Apply publishes; Done only dismisses. Partial skin-success/cape-failure is reported honestly.
+- **verified in source/logs:** Replaced placeholder skin textures with the nine corresponding vanilla player textures from Minecraft 26.3. Textures remain Mojang assets. CoreGraphics draws textured cuboids; grid cells use static raster thumbnails. Main preview supports rotation. Portrait stacks preview and grid; wide layout uses columns. Custom import replaces the selected default/custom slot, supports PNG dimensions 64×64 / 64×32, and includes Classic/Slim choice. Cape grid contains No cape plus only profile-owned capes.
+- **verified in source/logs:** Java bridge compilation with `javac --release 8` passed; seven mocked SDL state/mask checks passed. They do not test real native SDL or iOS GUI behavior. `git diff --check` passed.
+- **hypothesis / pending runtime validation:** Test portrait and landscape on iPhone; skin transparency/legacy texture appearance; authenticated upload/cape change; network failure; LSHIFT, RSHIFT, both held/release, recipe bulk fill, result bulk craft. Account service requests have not been exercised against a live user account here.
+
+## Build and controlled crash confirmation
+
+- **verified in source/logs:** Windows cannot compile this iOS app locally. Branch push triggers `.github/workflows/development.yml` on macOS, using Xcode `latest-stable`, recursive submodules, Homebrew make/ldid/temurin@8, and `gmake dsym package PLATFORM=2`. Download the regular IPA artifact for this non-jailbroken device; TIPA is a separate TrollStore build.
+- **verified in source/logs:** Full source is pushed to `Mudkip267/Amethyst-iOS`, branch `codex/skins-input-stability`. Build status and final artifact links are recorded in the chat delivery; a successful compile does not establish crash-free gameplay.
+- **hypothesis / confirmation plan:** On a copied instance, first reproduce with new launcher plus vanilla/Fabric API, no resource packs or VirtualShift workaround; exit/reenter world and do five Nether roundtrips. Then restore mods in groups, with C2ME and rendering/input mixins tested separately. Keep the original worlds as backups. Compare the same actions at lower simulation distance and FPS only as a diagnostic experiment.
+- **hypothesis / instrumentation plan:** Correlate `[MemoryDiagnostics]`, JVM heap/GC, last shader/pipeline operation, and iOS Analytics `.ips`/JetsamEvent timestamp. If shaderc repeats, instrument `PatchJNAAgent.Synchronizer.synchronizeCompileCalls` (matched methods/flags), `GlslCompiler.compileToSpv`/`close` (thread, compiler handle, shader name, begin/end; no account data), and pipeline reload lifecycle. If device loss appears, instrument `Natives/ctxbridges/vk_bridge.m` and `sdl3_hook.m` around surface generation, acquisition/destruction and Vulkan results. For residual Shift issues log `executebtn:withAction:`, `getKeyModifiers`, `CallbackBridge_nativeSendKey`/`nativeSendMouseButton`, `SDL3Bridge.onKey`/`syncKeyboardState`/`onButton` and `SDLEventHandler.handleMouseButtonEvent`: key/scancode/action, held bits, GLFW mask, SDL mask before/after, mouse button and consumed modifier snapshot. These logs are needed before asserting the remaining causes.

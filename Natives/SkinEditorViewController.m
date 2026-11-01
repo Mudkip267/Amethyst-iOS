@@ -3,6 +3,22 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <ImageIO/ImageIO.h>
 
+// Keep child layout independent of the button tag used for cape selection.
+@interface SkinCapeCard : UIButton
+@property(nonatomic, strong) UIImageView *picture;
+@property(nonatomic, strong) UILabel *nameLabel;
+@property(nonatomic, strong) UILabel *emptyLabel;
+@end
+@implementation SkinCapeCard
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGFloat width = self.bounds.size.width, height = self.bounds.size.height;
+    self.picture.frame = CGRectMake(12,12,MAX(0,width-24),MAX(0,height-70));
+    self.nameLabel.frame = CGRectMake(6,MAX(0,height-52),MAX(0,width-12),46);
+    self.emptyLabel.frame = self.picture.frame;
+}
+@end
+
 @interface SkinEditorViewController () <UIDocumentPickerDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate>
 @property UIScrollView *scroll;
 @property SkinPreviewView *preview;
@@ -12,7 +28,7 @@
 @property UILabel *hint;
 @property UIImage *image;
 @property NSString *capeId;
-@property NSMutableArray<UIButton *> *capeCards;
+@property NSMutableArray<SkinCapeCard *> *capeCards;
 @property BOOL openedImport;
 @end
 @implementation SkinEditorViewController
@@ -34,18 +50,22 @@
     NSArray<CapeItem *> *capes = [SkinManager sharedManager].availableCapes;
     for (NSInteger i = 0; i < capes.count; i++) {
         CapeItem *cape = capes[i];
-        UIButton *card = SkinButton(@"",self,@selector(selectCape:)); card.tag = i; card.layer.borderColor = SkinAccent().CGColor;
+        SkinCapeCard *card = [SkinCapeCard buttonWithType:UIButtonTypeCustom];
+        card.tag = i; card.layer.borderColor = SkinAccent().CGColor;
+        card.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
+        card.layer.cornerRadius = 10; card.clipsToBounds = YES;
+        [card addTarget:self action:@selector(selectCape:) forControlEvents:UIControlEventTouchUpInside];
         UIImage *texture = [cape loadImage];
-        UIImageView *picture = [UIImageView new]; picture.tag = 1; picture.contentMode = UIViewContentModeScaleAspectFit; picture.layer.magnificationFilter = kCAFilterNearest;
+        UIImageView *picture = [UIImageView new]; picture.contentMode = UIViewContentModeScaleAspectFit; picture.layer.magnificationFilter = kCAFilterNearest;
         if (texture.CGImage) {
             CGFloat scale = CGImageGetWidth(texture.CGImage)/64.0;
             CGImageRef front = CGImageCreateWithImageInRect(texture.CGImage,CGRectMake(scale,scale,10*scale,16*scale));
             if (front) { picture.image = [UIImage imageWithCGImage:front]; CGImageRelease(front); }
         }
-        [card addSubview:picture];
-        UILabel *name = SkinLabel(cape.name,14); name.tag = 2; name.textAlignment = NSTextAlignmentCenter; [card addSubview:name];
+        card.picture = picture; [card addSubview:picture];
+        UILabel *name = SkinLabel(cape.name,14); name.textAlignment = NSTextAlignmentCenter; card.nameLabel = name; [card addSubview:name];
         if ([cape.capeId isEqual:@"none"]) {
-            UILabel *empty = SkinLabel(@"∅",48); empty.tag = 3; empty.textAlignment = NSTextAlignmentCenter; empty.textColor = UIColor.tertiaryLabelColor; [card addSubview:empty];
+            UILabel *empty = SkinLabel(@"∅",48); empty.textAlignment = NSTextAlignmentCenter; empty.textColor = UIColor.tertiaryLabelColor; card.emptyLabel = empty; [card addSubview:empty];
         }
         [self.scroll addSubview:card]; [self.capeCards addObject:card];
     }
@@ -69,10 +89,7 @@
     NSInteger cols = MAX(2,(NSInteger)((available+12)/148));
     CGFloat cardWidth = (available-12*(cols-1))/cols, cardHeight = cardWidth*1.4+54;
     for (NSInteger i = 0; i < self.capeCards.count; i++) {
-        UIButton *card = self.capeCards[i]; card.frame = CGRectMake(x+(i%cols)*(cardWidth+12), y+(i/cols)*(cardHeight+12),cardWidth,cardHeight);
-        [card viewWithTag:1].frame = CGRectMake(12,12,cardWidth-24,cardHeight-70);
-        [card viewWithTag:2].frame = CGRectMake(6,cardHeight-52,cardWidth-12,46);
-        [card viewWithTag:3].frame = CGRectMake(12,12,cardWidth-24,cardHeight-70);
+        SkinCapeCard *card = self.capeCards[i]; card.frame = CGRectMake(x+(i%cols)*(cardWidth+12), y+(i/cols)*(cardHeight+12),cardWidth,cardHeight);
     }
     self.scroll.contentSize = CGSizeMake(width,MAX(466,y+((self.capeCards.count+cols-1)/cols)*(cardHeight+12))+16);
 }

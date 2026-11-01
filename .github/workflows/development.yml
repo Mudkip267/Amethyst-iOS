@@ -11,6 +11,14 @@ on:
   workflow_dispatch:
 
 jobs:
+  cape-layout:
+    name: Cape layout regression (UIKit simulator)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify cape cards across indices and sizes
+        run: bash tests/cape-layout/run.sh
+
   build:
     name: Development build
     strategy:

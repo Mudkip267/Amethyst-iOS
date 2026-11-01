@@ -11,8 +11,14 @@ static BaseAuthenticator *testAccount;
 + (BaseAuthenticator *)current { return testAccount; }
 + (void)setCurrent:(BaseAuthenticator *)account { testAccount = account; }
 + (NSDictionary *)tokenDataOfProfile:(NSString *)profile { return nil; }
++ (id)loadSavedName:(NSString *)name { return nil; }
+- (id)initWithInput:(NSString *)string { return [super init]; }
+- (void)loginWithCallback:(Callback)callback {}
+- (void)refreshTokenWithCallback:(Callback)callback {}
+- (BOOL)saveChanges { return YES; }
 @end
 @implementation MicrosoftAuthenticator
++ (void)clearTokenDataOfProfile:(NSString *)profile {}
 @end
 
 static NSString *mode;
@@ -70,7 +76,7 @@ static UIImage *Texture(BOOL cape) {
 static BOOL CenterIs(UIImage *image, NSInteger component) {
     unsigned char pixel[4] = {0};
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-    CGContextRef context = CGBitmapContextCreate(pixel,1,1,8,4,space,kCGImageAlphaPremultipliedLast);
+    CGContextRef context = CGBitmapContextCreate(pixel,1,1,8,4,space,(CGBitmapInfo)kCGImageAlphaPremultipliedLast);
     CGColorSpaceRelease(space);
     CGContextTranslateCTM(context,-CGImageGetWidth(image.CGImage)/2.0,-CGImageGetHeight(image.CGImage)/2.0);
     CGContextDrawImage(context,CGRectMake(0,0,CGImageGetWidth(image.CGImage),CGImageGetHeight(image.CGImage)),image.CGImage);
@@ -81,7 +87,7 @@ static BOOL CenterIs(UIImage *image, NSInteger component) {
 - (void)save;
 @end
 @interface RegressionApp : UIResponder <UIApplicationDelegate>
-@property UIWindow *window;
+@property(nonatomic,strong) UIWindow *window;
 @property SkinItem *skin;
 @property NSArray *cases;
 @property NSInteger caseIndex;

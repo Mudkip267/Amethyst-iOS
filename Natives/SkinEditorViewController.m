@@ -30,7 +30,7 @@
 @property NSString *capeId;
 @property NSMutableArray<SkinCapeCard *> *capeCards;
 @property BOOL openedImport;
-@property BOOL saving;
+@property(nonatomic) BOOL saving;
 @end
 @implementation SkinEditorViewController
 - (void)viewDidLoad {

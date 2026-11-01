@@ -16,7 +16,7 @@ with (work/'SkinRegression.app/Info.plist').open('wb') as f:
 PY
 sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 xcrun clang -fobjc-arc -fblocks -arch "$(uname -m)" -mios-simulator-version-min=17.0 -isysroot "$sdk" \
-  -framework UIKit -framework Foundation -framework CoreGraphics -framework ImageIO -framework UniformTypeIdentifiers \
+  -framework UIKit -framework Foundation -framework CoreGraphics -framework QuartzCore -framework ImageIO -framework UniformTypeIdentifiers \
   -I "$work" -I "$root/Natives" -I "$root/tests/skin-regression" \
   "$root/tests/skin-regression/main.m" "$work/SkinModel.m" "$root/Natives/SkinPreviewView.m" \
   "$root/Natives/SkinEditorViewController.m" "$root/Natives/SkinManagerViewController.m" -o "$app/SkinRegression"

@@ -81,7 +81,7 @@ static SkinPoint SkinRotate(SkinPoint p, CGFloat angle) {
     return (SkinPoint){x, p.y * cos(0.15) - z * sin(0.15), p.y * sin(0.15) + z * cos(0.15)};
 }
 - (void)addBox:(NSMutableArray<SkinFace *> *)faces image:(UIImage *)image
-        origin:(CGPoint)uv size:(SkinPoint)size center:(SkinPoint)center expansion:(CGFloat)extra {
+        origin:(CGPoint)uv size:(SkinPoint)size center:(SkinPoint)center expansion:(CGFloat)extra cape:(BOOL)cape {
     if (!image.CGImage) return;
     CGFloat x = size.x / 2 + extra, y = size.y / 2 + extra, z = size.z / 2 + extra;
     // Vertices in texture order: top left, top right, bottom left.
@@ -95,6 +95,8 @@ static SkinPoint SkinRotate(SkinPoint p, CGFloat angle) {
     CGRect crops[6] = {CGRectMake(u+d,v+d,w,h), CGRectMake(u,v+d,d,h),
         CGRectMake(u+2*d+w,v+d,w,h), CGRectMake(u+d+w,v+d,d,h),
         CGRectMake(u+d,v,w,d), CGRectMake(u+d+w,v,w,d)};
+    // A cape hangs behind the player, so its visible outside face points toward -Z.
+    if (cape) { CGRect front = crops[0]; crops[0] = crops[2]; crops[2] = front; }
     for (int i = 0; i < 6; i++) {
         SkinPoint normal = SkinRotate(normals[i], self.rotationAngle);
         if (normal.z <= 0) continue;
@@ -117,19 +119,20 @@ static SkinPoint SkinRotate(SkinPoint p, CGFloat angle) {
     }
 }
 - (void)drawModelInSize:(CGSize)size {
-    if (!self.skinImage) return;
+    CGImageRef skinCGImage = self.skinImage.CGImage;
+    if (!skinCGImage || size.width <= 0 || size.height <= 0) return;
     NSMutableArray<SkinFace *> *faces = [NSMutableArray array];
-    BOOL modern = CGImageGetHeight(self.skinImage.CGImage) >= 64;
+    BOOL modern = CGImageGetHeight(skinCGImage) >= 64;
     CGFloat arm = self.armStyle == SkinArmStyleSlim && modern ? 3 : 4;
     SkinPoint dimensions[] = {{8,8,8},{8,12,4},{arm,12,4},{arm,12,4},{4,12,4},{4,12,4}};
     SkinPoint centers[] = {{0,28,0},{0,18,0},{-4-arm/2,18,0},{4+arm/2,18,0},{-2,6,0},{2,6,0}};
     CGPoint base[] = {{0,0},{16,16},{40,16},modern ? CGPointMake(32,48) : CGPointMake(40,16),{0,16},modern ? CGPointMake(16,48) : CGPointMake(0,16)};
     CGPoint overlay[] = {{32,0},{16,32},{40,32},{48,48},{0,32},{0,48}};
     for (int i = 0; i < 6; i++) {
-        [self addBox:faces image:self.skinImage origin:base[i] size:dimensions[i] center:centers[i] expansion:0];
-        if (modern || i == 0) [self addBox:faces image:self.skinImage origin:overlay[i] size:dimensions[i] center:centers[i] expansion:i == 0 ? 0.5 : 0.25];
+        [self addBox:faces image:self.skinImage origin:base[i] size:dimensions[i] center:centers[i] expansion:0 cape:NO];
+        if (modern || i == 0) [self addBox:faces image:self.skinImage origin:overlay[i] size:dimensions[i] center:centers[i] expansion:i == 0 ? 0.5 : 0.25 cape:NO];
     }
-    if (self.capeImage) [self addBox:faces image:self.capeImage origin:CGPointZero size:(SkinPoint){10,16,1} center:(SkinPoint){0,16,-3} expansion:0];
+    if (self.capeImage) [self addBox:faces image:self.capeImage origin:CGPointZero size:(SkinPoint){10,16,1} center:(SkinPoint){0,16,-3} expansion:0 cape:YES];
     [faces sortUsingComparator:^NSComparisonResult(SkinFace *a, SkinFace *b) {
         return a.depth < b.depth ? NSOrderedAscending : (a.depth > b.depth ? NSOrderedDescending : NSOrderedSame);
     }];
@@ -151,6 +154,7 @@ static SkinPoint SkinRotate(SkinPoint p, CGFloat angle) {
 }
 - (void)drawRect:(CGRect)rect { [self drawModelInSize:self.bounds.size]; }
 - (UIImage *)generateThumbnailWithSize:(CGSize)size {
+    if (size.width <= 0 || size.height <= 0 || !self.skinImage.CGImage) return nil;
     UIGraphicsBeginImageContextWithOptions(size, NO, 0);
     [self drawModelInSize:size];
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();

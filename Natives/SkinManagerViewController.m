@@ -141,8 +141,14 @@
 - (void)openEditor:(BOOL)importing {
     SkinEditorViewController *editor = [SkinEditorViewController new];
     editor.skinToEdit = [SkinItem fromDictionary:self.selection.toDictionary]; editor.importOnOpen = importing;
+    editor.accountUsername = self.currentAccountUsername;
     __weak typeof(self) weakSelf = self;
-    editor.whenSkinAdded = ^(SkinItem *skin) { weakSelf.selection = skin; [weakSelf updatePreview]; [weakSelf rebuildGrid]; };
+    editor.whenSkinAdded = ^(SkinItem *skin) {
+        typeof(self) self = weakSelf; if (!self) return;
+        self.selection = skin; [self updatePreview]; [self rebuildGrid];
+        self.statusLabel.text = @"Skin and cape were confirmed on your Minecraft account. Restart Minecraft to refresh cached textures.";
+        if (self.whenSkinChanged) self.whenSkinChanged(skin);
+    };
     UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:editor];
     navigation.modalPresentationStyle = UIModalPresentationPageSheet;
     [self presentViewController:navigation animated:YES completion:nil];
@@ -154,7 +160,10 @@
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Delete saved skin?" message:@"This removes the local copy. Your Minecraft account will keep its current skin." preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Delete" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
-        [[SkinManager sharedManager] deleteCustomSkin:skin];
+        if (![[SkinManager sharedManager] deleteCustomSkin:skin]) {
+            SkinAlert(self,@"Could not delete skin",@"The skin list could not be saved. Check available storage and try again.");
+            return;
+        }
         if ([self.selection.skinId isEqual:skin.skinId]) self.selection = [SkinItem fromDictionary:[SkinManager sharedManager].defaultSkins.firstObject.toDictionary];
         [self updatePreview]; [self rebuildGrid];
     }]]; [self presentViewController:alert animated:YES completion:nil];
@@ -166,7 +175,10 @@
     [[SkinManager sharedManager] applyOnlineSkin:selection completion:^(NSError *error) {
         [self setWorking:NO]; self.statusLabel.text = error ? error.localizedDescription : @"Skin and cape updated. Rejoin your world to see the change.";
         if (error) { SkinAlert(self,@"Could not finish updating",error.localizedDescription); return; }
-        [[SkinManager sharedManager] setActiveSkin:selection forAccount:self.currentAccountUsername];
+        if (![[SkinManager sharedManager] setActiveSkin:selection forAccount:self.currentAccountUsername]) {
+            self.statusLabel.text = @"Minecraft updated the skin, but Amethyst could not save the local selection. Check available storage.";
+            SkinAlert(self,@"Updated on Minecraft",self.statusLabel.text);
+        }
         if (self.whenSkinChanged) self.whenSkinChanged(selection);
     }];
 }

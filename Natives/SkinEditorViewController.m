@@ -30,6 +30,7 @@
 @property NSString *capeId;
 @property NSMutableArray<SkinCapeCard *> *capeCards;
 @property BOOL openedImport;
+@property(nonatomic) BOOL saving;
 @end
 @implementation SkinEditorViewController
 - (void)viewDidLoad {
@@ -42,7 +43,7 @@
     self.modelChoice = [[UISegmentedControl alloc] initWithItems:@[@"Classic",@"Slim"]]; self.modelChoice.selectedSegmentIndex = self.skinToEdit.armStyle;
     [self.modelChoice addTarget:self action:@selector(updatePreview) forControlEvents:UIControlEventValueChanged]; [self.scroll addSubview:self.modelChoice];
     self.importButton = SkinButton(@"Choose skin image…",self,@selector(pick)); [self.scroll addSubview:self.importButton];
-    self.hint = SkinLabel(@"PNG skin, 64 × 64 or 64 × 32 pixels. Imported images replace the selected skin tile. Save keeps a local draft; use Apply to account to publish it.",12);
+    self.hint = SkinLabel(@"PNG skin, 64 × 64 or 64 × 32 pixels. Save updates your Minecraft account with the selected skin and cape.",12);
     self.hint.textColor = UIColor.secondaryLabelColor; [self.scroll addSubview:self.hint];
     self.capeTitle = SkinLabel(@"Choose your cape",21); [self.scroll addSubview:self.capeTitle];
     self.image = [self.skinToEdit loadImage]; self.capeId = self.skinToEdit.capeId ?: @"none";
@@ -153,13 +154,35 @@
 }
 - (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker { [picker dismissViewControllerAnimated:YES completion:nil]; }
 - (void)save {
+    if (self.saving) return;
     if (!self.image) { SkinAlert(self,@"Choose a skin",@"Select a valid skin image first."); return; }
     SkinItem *draft = [SkinItem fromDictionary:self.skinToEdit.toDictionary];
     draft.armStyle = self.modelChoice.selectedSegmentIndex; draft.capeId = self.capeId;
     SkinItem *saved = [[SkinManager sharedManager] saveDraft:draft image:self.image];
     if (!saved) { SkinAlert(self,@"Could not save",@"The skin image could not be saved. Check available storage and try again."); return; }
-    if (self.whenSkinAdded) self.whenSkinAdded(saved);
-    [self dismissViewControllerAnimated:YES completion:nil];
+    self.skinToEdit = saved;
+    [self setSaving:YES]; self.hint.text = @"Updating your Minecraft account…";
+    [[SkinManager sharedManager] applyOnlineSkin:saved completion:^(NSError *error) {
+        [self setSaving:NO];
+        if (error) {
+            self.hint.text = [@"Your local draft is saved. Retry Save after fixing the sign-in or network issue. " stringByAppendingString:error.localizedDescription];
+            SkinAlert(self,@"Could not finish updating",error.localizedDescription); return;
+        }
+        if (![[SkinManager sharedManager] setActiveSkin:saved forAccount:self.accountUsername]) {
+            SkinAlert(self,@"Updated on Minecraft",@"Minecraft accepted the skin and cape, but Amethyst could not save the local selection. Check available storage.");
+        }
+        if (self.whenSkinAdded) self.whenSkinAdded(saved);
+        [self dismissViewControllerAnimated:YES completion:nil];
+    }];
 }
-- (void)cancel { [self dismissViewControllerAnimated:YES completion:nil]; }
+- (void)setSaving:(BOOL)saving {
+    _saving = saving;
+    self.scroll.userInteractionEnabled = !saving;
+    self.navigationItem.leftBarButtonItem.enabled = !saving;
+    self.navigationItem.rightBarButtonItem.enabled = !saving;
+    self.navigationItem.rightBarButtonItem.title = saving ? @"Saving…" : @"Save";
+    self.modalInPresentation = saving;
+    self.navigationController.modalInPresentation = saving;
+}
+- (void)cancel { if (!self.saving) [self dismissViewControllerAnimated:YES completion:nil]; }
 @end

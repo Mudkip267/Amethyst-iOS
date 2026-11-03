@@ -37,17 +37,17 @@
 
 + (instancetype)sharedManager;
 - (void)reload;
-- (void)saveConfig;
+- (BOOL)saveConfig;
 - (void)fetchProfile:(void (^)(SkinItem *skin, NSError *error))completion;
 - (void)applyOnlineSkin:(SkinItem *)skin completion:(void (^)(NSError *error))completion;
 
 - (SkinItem *)activeSkinForAccount:(NSString *)username;
-- (void)setActiveSkin:(SkinItem *)skin forAccount:(NSString *)username;
+- (BOOL)setActiveSkin:(SkinItem *)skin forAccount:(NSString *)username;
 
 - (CapeItem *)capeForId:(NSString *)capeId;
 - (SkinItem *)addCustomSkinWithImage:(UIImage *)image name:(NSString *)name armStyle:(SkinArmStyle)armStyle capeId:(NSString *)capeId;
 - (SkinItem *)saveDraft:(SkinItem *)draft image:(UIImage *)image;
-- (void)deleteCustomSkin:(SkinItem *)skin;
+- (BOOL)deleteCustomSkin:(SkinItem *)skin;
 
 - (UIImage *)generateAvatarHeadFromSkin:(UIImage *)skinImage;
 

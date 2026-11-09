@@ -352,3 +352,49 @@ index dbac364..fa53298 100644
      }
      #[cfg(not(target_os = "ios"))]
      let _ = window;
+diff --git a/crates/horizon-client/src/game/loading_screen.rs b/crates/horizon-client/src/game/loading_screen.rs
+index 85e56fc..1b946af 100644
+--- a/crates/horizon-client/src/game/loading_screen.rs
++++ b/crates/horizon-client/src/game/loading_screen.rs
+@@ -414,9 +414,11 @@ impl Loading {
+         let gui = self.gui.take().ok_or("missing menu bundle")?;
+         let window = self.window.clone().ok_or("window closed")?;
+         // Keep the loader's device and swap in the real textures in one step.
++        log::info!("Horizon: releasing the loading surface for the world renderer");
+         if let Some(renderer) = &mut self.renderer {
+             renderer.release_surface();
+         }
++        log::info!("Horizon: building the world renderer");
+         let renderer_at = Instant::now();
+         let renderer = match startup::time("renderer.world", || {
+             build_renderer(
+@@ -938,6 +940,7 @@ impl App {
+                 // needs, and take the files over Wi-Fi or a cable. Everywhere else the window has a
+                 // terminal behind it that already said it. A phone waits whatever the loader's reason
+                 // was: it cannot read a log, and the screen shows the reason either way.
++                log::error!("Horizon: startup handoff failed: {e}");
+                 if let App::Loading(loading) = self {
+                     if horizon_client::import::waits_on_screen() || loading.downloads_game_files() {
+                         loading.wait_for_files(e.to_string());
+diff --git a/crates/horizon-client/src/game/resource_load.rs b/crates/horizon-client/src/game/resource_load.rs
+index 8174b7d..b140f09 100644
+--- a/crates/horizon-client/src/game/resource_load.rs
++++ b/crates/horizon-client/src/game/resource_load.rs
+@@ -384,7 +384,16 @@ pub(super) fn load_resources_with_access(
+     // One pool of workers for every level's streaming, the client's and the
+     // server thread's (horizon_threads::jobs), sized before any world opens.
+     horizon_threads::jobs::configure(threads);
+-    horizon_client::sprites::set_texture_budget(settings.horizon.texture_budget_mib);
++    let texture_budget = settings.horizon.texture_budget_mib;
++    // Use a smaller automatic budget during the iOS title-to-world renderer handoff.
++    let texture_budget = if cfg!(all(target_os = "ios", feature = "amethyst-embedded"))
++        && texture_budget == 0
++    {
++        64
++    } else {
++        texture_budget
++    };
++    horizon_client::sprites::set_texture_budget(texture_budget);
+     horizon_client::sprites::set_labpbr_maps(shader_packs::picks_material_pack(settings));
+     // Stage A: the menu bundle (atlas and panorama). With a loading screen it is
+     // published at once so the title screen can appear while the world bundle

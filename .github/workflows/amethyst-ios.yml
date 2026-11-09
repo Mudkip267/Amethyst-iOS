@@ -1,0 +1,79 @@
+name: Horizon Amethyst IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    runs-on: macos-26
+    timeout-minutes: 25
+    env:
+      BASE_COMMIT: cf2707b035917d9f93fb7ea89ddc077396e19e96
+      BASE_SHA256: 065ee4a017977522023004e1a561f0eaf867b694ef720e90d947205bdd629f73
+      BASE_URL: https://github.com/heyskylo/horizon-ios/releases/download/ios-build-92.1/Horizon-iOS-0.1.48-build92.1-unsigned.ipa
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check Xcode and the pinned engine
+        run: |
+          set -euo pipefail
+          bash tools/ci/ios-toolchain.sh
+          curl --fail --silent --show-error --location --retry 3 "$BASE_URL" -o baseline.ipa
+          printf '%s  baseline.ipa\n' "$BASE_SHA256" | shasum -a 256 -c
+          python3 tools/ci/ios_release.py baseline.ipa --expect-commit "$BASE_COMMIT"
+      - name: Compile the SwiftUI launcher for iPhone
+        run: |
+          set -euo pipefail
+          command -v xcodegen >/dev/null || brew install xcodegen
+          (cd packaging/ios && xcodegen generate)
+          xcodebuild -project packaging/ios/HorizonIOS.xcodeproj \
+            -target HorizonLauncherKit -configuration Release -sdk iphoneos -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
+            DEBUG_INFORMATION_FORMAT=dwarf CONFIGURATION_BUILD_DIR="$PWD/build-launcher" build
+      - name: Assemble and audit the device IPA
+        run: |
+          set -euo pipefail
+          ditto -x -k baseline.ipa assembled
+          app=assembled/Payload/HorizonGame.app
+          framework=HorizonLauncherKit.framework
+          test -f "$app/Frameworks/$framework/HorizonLauncherKit"
+          test -f "build-launcher/$framework/HorizonLauncherKit"
+          mv "$app/Frameworks/$framework" upstream-launcher.framework
+          ditto "build-launcher/$framework" "$app/Frameworks/$framework"
+          python3 - "$app" <<'PY'
+          import os
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          app = Path(sys.argv[1])
+          plist = app / "Info.plist"
+          info = plistlib.loads(plist.read_bytes())
+          info["CFBundleDisplayName"] = "Horizon Amethyst"
+          info["CFBundleIdentifier"] = "io.github.mudkip267.horizon"
+          info["CFBundleVersion"] = f"{os.environ['GITHUB_RUN_NUMBER']}.{os.environ['GITHUB_RUN_ATTEMPT']}"
+          info["HorizonEngineCommit"] = os.environ["BASE_COMMIT"]
+          info["HorizonBuildCommit"] = os.environ["GITHUB_SHA"]
+          plist.write_bytes(plistlib.dumps(info))
+          framework = app / "Frameworks/HorizonLauncherKit.framework/Info.plist"
+          metadata = plistlib.loads(framework.read_bytes())
+          for key in ("CFBundleShortVersionString", "CFBundleVersion"):
+              metadata[key] = info[key]
+          framework.write_bytes(plistlib.dumps(metadata))
+          PY
+          (cd assembled && zip -qry ../Horizon-Amethyst-unsigned.ipa Payload)
+          python3 tools/ci/ios_release.py Horizon-Amethyst-unsigned.ipa --expect-commit "$GITHUB_SHA"
+          shasum -a 256 Horizon-Amethyst-unsigned.ipa > Horizon-Amethyst-unsigned.ipa.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Horizon-Amethyst-iOS
+          path: |
+            Horizon-Amethyst-unsigned.ipa
+            Horizon-Amethyst-unsigned.ipa.sha256
+          if-no-files-found: error

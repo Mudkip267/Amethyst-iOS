@@ -21,7 +21,7 @@ UIEdgeInsets getDefaultSafeArea();
 CGRect getSafeArea(CGRect screenBounds);
 void setSafeArea(CGSize screenSize, CGRect safeArea);
 
-NSString* getSelectedJavaHome(NSString* defaultJRETag, int minVersion);
+NSString* getSelectedJavaHome(NSString* defaultJRETag, int minVersion, int *majorVersion);
 
 NSArray* getRendererKeys(BOOL containsDefault);
 NSArray* getRendererNames(BOOL containsDefault);

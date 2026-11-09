@@ -332,3 +332,23 @@ index e7e1f2c..ce746f0 100644
      static let accentEdge = accent
      static let accentBright = accent
      static let accentText = accent
+diff --git a/crates/horizon-client/src/game/launcher.rs b/crates/horizon-client/src/game/launcher.rs
+index dbac364..fa53298 100644
+--- a/crates/horizon-client/src/game/launcher.rs
++++ b/crates/horizon-client/src/game/launcher.rs
+@@ -37,6 +37,15 @@ fn launcher_visibility(window: Option<&winit::window::Window>, visible: bool) ->
+         } else {
+             ValidOrientations::Landscape
+         });
++        if !visible {
++            let size = window.inner_size();
++            log::info!(
++                "Horizon: launcher dismissed; requesting a game frame ({}x{})",
++                size.width,
++                size.height
++            );
++            window.request_redraw();
++        }
+     }
+     #[cfg(not(target_os = "ios"))]
+     let _ = window;

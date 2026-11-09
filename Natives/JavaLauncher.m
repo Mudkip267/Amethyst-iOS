@@ -309,7 +309,8 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
     }
     NSLog(@"[JavaLauncher] Using LWJGL from %@", lwjgl.folder);
     NSLog(@"[JavaLauncher] Looking for Java %d or later", minVersion);
-    NSString *javaHome = getSelectedJavaHome(defaultJRETag, minVersion);
+    int javaMajorVersion = 0;
+    NSString *javaHome = getSelectedJavaHome(defaultJRETag, minVersion, &javaMajorVersion);
 
     if (javaHome == nil) {
         UIKit_returnToSplitView();
@@ -384,9 +385,10 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
     margv[++margc] = "-XX:+UseG1GC";
     margv[++margc] = "-XX:InitiatingHeapOccupancyPercent=40";
     margv[++margc] = "-XX:G1ReservePercent=15";
-    margv[++margc] = "-XX:G1PeriodicGCInterval=2000";
-    margv[++margc] = "-XX:+G1PeriodicGCInvokesConcurrent";
-    margv[++margc] = "-XX:G1PeriodicGCSysLoadThreshold=0.0";
+    if (javaMajorVersion >= 12) {
+        margv[++margc] = "-XX:G1PeriodicGCInterval=2000";
+        margv[++margc] = "-XX:+G1PeriodicGCInvokesConcurrent";
+    }
     margv[++margc] = "-XX:G1HeapWastePercent=5";
     margv[++margc] = "-XX:G1MixedGCCountTarget=4";
     margv[++margc] = "-XX:+ExplicitGCInvokesConcurrent";

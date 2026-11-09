@@ -99,7 +99,7 @@ UIEdgeInsets getDefaultSafeArea() {
 
 #pragma mark Java runtime
 
-NSString* getSelectedJavaHome(NSString* defaultJRETag, int minVersion) {
+NSString* getSelectedJavaHome(NSString* defaultJRETag, int minVersion, int *majorVersion) {
     NSDictionary *pref = getPrefObject(@"java.java_homes");
     NSDictionary<NSString *, NSString *> *selected = pref[@"0"];
     NSString *selectedVer = selected[defaultJRETag];
@@ -126,6 +126,7 @@ NSString* getSelectedJavaHome(NSString* defaultJRETag, int minVersion) {
     }
 
     if ([NSFileManager.defaultManager fileExistsAtPath:selectedDir]) {
+        *majorVersion = selectedVer.intValue;
         return selectedDir;
     } else {
         NSLog(@"Error: selected runtime for %@ does not exist: %@", defaultJRETag, selectedDir);

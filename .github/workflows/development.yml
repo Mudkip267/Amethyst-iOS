@@ -88,6 +88,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: horizon-engine-src -> target
+          cache-on-failure: true
 
       - name: Build Horizon Rust engine and launcher framework
         if: github.ref_name == 'codex/amethyst-horizon-runtime'
@@ -143,7 +144,21 @@ jobs:
         run: |
           export PATH=/opt/homebrew/bin:$PATH
           export SLIMMED=1
-          if [ "${{ matrix.platform_name }}" == "ios" ]; then
+          if [ -n "${HORIZON_FRAMEWORKS_DIR:-}" ]; then
+            export SLIMMED_ONLY=1
+            gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }}
+            python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          ipa, = Path("artifacts").glob("org.angelauramc.amethyst.slimmed-*-ios.ipa")
+          with ZipFile(ipa) as archive:
+              root = "Payload/AngelAuraAmethyst.app/"
+              for member in ("AngelAuraAmethyst", "Frameworks/libAmethystHorizon.dylib",
+                             "Frameworks/HorizonLauncherKit.framework/HorizonLauncherKit"):
+                  archive.getinfo(root + member)
+          PY
+          elif [ "${{ matrix.platform_name }}" == "ios" ]; then
             # Build ipa and tipa for iOS
             gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }}
             gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }} TROLLSTORE_JIT_ENT=1

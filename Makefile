@@ -426,7 +426,7 @@ assets:
 	fi
 	echo '[Amethyst v$(VERSION)] assets - end'
 
-payload: native dep_mg dep_mobilegl dep_mcmetal dep_ame_vulkan java jre assets
+payload: native dep_mg dep_mobilegl dep_mcmetal dep_ame_vulkan java $(if $(filter 1,$(SLIMMED_ONLY)),,jre) assets
 	echo '[Amethyst v$(VERSION)] payload - start'
 	$(call METHOD_DIRCHECK,$(WORKINGDIR)/AngelAuraAmethyst.app/libs)
 	$(call METHOD_DIRCHECK,$(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo)
@@ -469,7 +469,9 @@ payload: native dep_mg dep_mobilegl dep_mcmetal dep_ame_vulkan java jre assets
 	chmod -R 755 $(OUTPUTDIR)/Payload
 	if [ '$(PLATFORM)' != '2' ]; then \
 		$(call METHOD_MACHO,$(OUTPUTDIR)/Payload/AngelAuraAmethyst.app,$(call METHOD_CHANGE_PLAT,$(PLATFORM),$$file)); \
-		$(call METHOD_MACHO,$(OUTPUTDIR)/java_runtimes,$(call METHOD_CHANGE_PLAT,$(PLATFORM),$$file)); \
+		if [ '$(SLIMMED_ONLY)' != '1' ]; then \
+			$(call METHOD_MACHO,$(OUTPUTDIR)/java_runtimes,$(call METHOD_CHANGE_PLAT,$(PLATFORM),$$file)); \
+		fi; \
 	fi
 	echo '[Amethyst v$(VERSION)] payload - end'
 
@@ -511,7 +513,9 @@ package: payload
 	fi
 	cd $(OUTPUTDIR); \
 	$(call METHOD_PACKAGE); \
-	zip --symlinks -r $(OUTPUTDIR)/java_runtimes.zip java_runtimes; \
+	if [ '$(SLIMMED_ONLY)' != '1' ]; then \
+		zip --symlinks -r $(OUTPUTDIR)/java_runtimes.zip java_runtimes || exit 1; \
+	fi; \
 	echo '[Amethyst v$(VERSION)] package - end'
 	
 dsym: payload

@@ -50,7 +50,23 @@ jobs:
           xcode-version: 'latest-stable'
 
       - name: Install Dependencies
+        if: github.ref_name != 'codex/amethyst-horizon-runtime'
         run: brew install make ldid temurin@8
+
+      - name: Install iOS build dependencies
+        if: github.ref_name == 'codex/amethyst-horizon-runtime'
+        run: brew install make ldid
+
+      - name: Install the JDK 8 boot compiler
+        if: github.ref_name == 'codex/amethyst-horizon-runtime'
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '8'
+
+      - name: Set the Amethyst boot compiler path
+        if: github.ref_name == 'codex/amethyst-horizon-runtime'
+        run: echo "BOOTJDK=$JAVA_HOME/bin" >> "$GITHUB_ENV"
 
       - name: Checkout pinned Horizon iOS source
         if: github.ref_name == 'codex/amethyst-horizon-runtime'

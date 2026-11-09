@@ -22,7 +22,7 @@ export CARGO_INCREMENTAL=0
 
 cargo rustc --locked --release --target "$target" -p horizon-client --lib \
     --no-default-features --features audio,horizon-extras,amethyst-embedded \
-    --crate-type cdylib
+    --crate-type cdylib -- -C link-arg=-Wl,-headerpad_max_install_names
 
 mkdir -p "$output_dir/HorizonNotices"
 engine="$output_dir/libAmethystHorizon.dylib"

@@ -176,6 +176,8 @@ jobs:
               info = plistlib.loads(archive.read(root + "Info.plist"))
               if info["CFBundleIdentifier"] != "org.angelauramc.amethyst":
                   raise SystemExit("Unexpected Amethyst bundle identifier")
+              if not info.get("NSAppTransportSecurity", {}).get("NSAllowsLocalNetworking"):
+                  raise SystemExit("Missing Horizon local network download configuration")
               members = ["AngelAuraAmethyst", "Frameworks/libAmethystHorizon.dylib",
                          "Frameworks/HorizonLauncherKit.framework/HorizonLauncherKit"]
               for version in (8, 17, 21, 25):

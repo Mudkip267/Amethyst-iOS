@@ -2,7 +2,7 @@ name: Horizon Amethyst IPA
 
 on:
   push:
-    branches: [main]
+    branches: [codex/horizon-amethyst-ios]
   workflow_dispatch:
 
 permissions:

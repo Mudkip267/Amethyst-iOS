@@ -77,6 +77,25 @@ jobs:
           path: horizon-engine-src
           persist-credentials: false
 
+      - name: Prepare bundled iOS Java runtimes
+        if: github.ref_name == 'codex/amethyst-horizon-runtime'
+        run: |
+          source_ipa="$RUNNER_TEMP/amethyst-runtime-source.ipa"
+          source_root="$RUNNER_TEMP/amethyst-runtime-source"
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 180 \
+            --output "$source_ipa" \
+            https://github.com/Taylen27/Amethyst-iOS/releases/download/1.2.0/Amethyst-1.2.0.ipa
+          echo "c9f413f24266d010a81c3a51df44464944aeba4268581ee40592c920371e9d33  $source_ipa" | shasum -a 256 -c
+          ditto -x -k "$source_ipa" "$source_root"
+          mkdir -p depends
+          for version in 8 17 21 25; do
+            name="java-$version-openjdk"
+            runtime="$source_root/Payload/AngelAuraAmethyst.app/java_runtimes/$name"
+            test -s "$runtime/release"
+            test -s "$runtime/lib/server/libjvm.dylib"
+            ditto "$runtime" "depends/$name"
+          done
+
       - name: Install Horizon Rust toolchain
         if: github.ref_name == 'codex/amethyst-horizon-runtime'
         uses: dtolnay/rust-toolchain@stable
@@ -145,18 +164,29 @@ jobs:
           export PATH=/opt/homebrew/bin:$PATH
           export SLIMMED=1
           if [ -n "${HORIZON_FRAMEWORKS_DIR:-}" ]; then
-            export SLIMMED_ONLY=1
-            gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }}
+            gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }} SLIMMED=0 SLIMMED_ONLY=0
             python3 - <<'PY'
+          import plistlib
           from pathlib import Path
           from zipfile import ZipFile
 
-          ipa, = Path("artifacts").glob("org.angelauramc.amethyst.slimmed-*-ios.ipa")
+          ipa, = Path("artifacts").glob("org.angelauramc.amethyst-*-ios.ipa")
           with ZipFile(ipa) as archive:
               root = "Payload/AngelAuraAmethyst.app/"
-              for member in ("AngelAuraAmethyst", "Frameworks/libAmethystHorizon.dylib",
-                             "Frameworks/HorizonLauncherKit.framework/HorizonLauncherKit"):
-                  archive.getinfo(root + member)
+              info = plistlib.loads(archive.read(root + "Info.plist"))
+              if info["CFBundleIdentifier"] != "org.angelauramc.amethyst":
+                  raise SystemExit("Unexpected Amethyst bundle identifier")
+              members = ["AngelAuraAmethyst", "Frameworks/libAmethystHorizon.dylib",
+                         "Frameworks/HorizonLauncherKit.framework/HorizonLauncherKit"]
+              for version in (8, 17, 21, 25):
+                  runtime = f"java_runtimes/java-{version}-openjdk/"
+                  members.extend((runtime + "release", runtime + "lib/server/libjvm.dylib"))
+              for member in members:
+                  if archive.getinfo(root + member).file_size == 0:
+                      raise SystemExit(f"Empty IPA entry: {member}")
+              if bad_entry := archive.testzip():
+                  raise SystemExit(f"Corrupted IPA entry: {bad_entry}")
+              print(f"Verified {ipa.name}: Amethyst, Horizon, and Java 8/17/21/25")
           PY
           elif [ "${{ matrix.platform_name }}" == "ios" ]; then
             # Build ipa and tipa for iOS

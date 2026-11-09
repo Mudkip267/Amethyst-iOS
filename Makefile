@@ -111,6 +111,7 @@ $(error PLATFORM is not valid.)
 endif
 
 AME_BUNDLE_DIR      ?= $(OUTPUTDIR)/AngelAuraAmethyst.app
+HORIZON_FRAMEWORKS_DIR ?=
 AME_JRE8_DIR        ?= $(SOURCEDIR)/depends/java-8-openjdk
 AME_JRE17_DIR       ?= $(SOURCEDIR)/depends/java-17-openjdk
 AME_JRE21_DIR       ?= $(SOURCEDIR)/depends/java-21-openjdk
@@ -448,6 +449,12 @@ payload: native dep_mg dep_mobilegl dep_mcmetal dep_ame_vulkan java jre assets
 	cp -R $(SOURCEDIR)/JavaApp/libs/caciocavallo17/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo17 || exit 1
 	$(call METHOD_DIRCHECK,$(OUTPUTDIR)/Payload)
 	cp -R $(WORKINGDIR)/AngelAuraAmethyst.app $(OUTPUTDIR)/Payload
+	if [ '$(PLATFORM)' = '2' ] && [ -n '$(HORIZON_FRAMEWORKS_DIR)' ]; then \
+		test -f '$(HORIZON_FRAMEWORKS_DIR)/libAmethystHorizon.dylib' || exit 1; \
+		test -f '$(HORIZON_FRAMEWORKS_DIR)/HorizonLauncherKit.framework/HorizonLauncherKit' || exit 1; \
+		cp -R '$(HORIZON_FRAMEWORKS_DIR)/libAmethystHorizon.dylib' '$(HORIZON_FRAMEWORKS_DIR)/HorizonLauncherKit.framework' $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/Frameworks/ || exit 1; \
+		cp -R '$(HORIZON_FRAMEWORKS_DIR)/HorizonNotices' $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/ || exit 1; \
+	fi
 	if [ '$(SLIMMED_ONLY)' != '1' ]; then \
 		cp -R $(OUTPUTDIR)/java_runtimes $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app; \
 	fi

@@ -174,6 +174,7 @@ add_executable(AngelAuraAmethyst
   LauncherPrefManageJREViewController.m
   LauncherProfileEditorViewController.m
   LauncherProfilesViewController.m
+  HorizonRuntime.m
   LauncherSplitViewController.m
   MinecraftOptionUtils.m
   MinecraftResourceDownloadTask.m

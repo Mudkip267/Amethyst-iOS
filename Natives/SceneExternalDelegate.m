@@ -1,5 +1,6 @@
 #import "LauncherPreferences.h"
 #import "SceneExternalDelegate.h"
+#import "HorizonRuntime.h"
 #import "SurfaceViewController.h"
 
 extern UIWindow *externalWindow;
@@ -12,6 +13,7 @@ extern UIWindow *externalWindow;
 
 
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
+    if (AMEHorizonRunning()) return;
     UIWindowScene *windowScene = (UIWindowScene *)scene;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
     self.window.frame = windowScene.coordinateSpace.bounds; 
@@ -23,6 +25,7 @@ extern UIWindow *externalWindow;
 
 
 - (void)sceneDidDisconnect:(UIScene *)scene {
+    if (AMEHorizonRunning()) return;
     // Called as the scene is being released by the system.
     // This occurs shortly after the scene enters the background, or when its session is discarded.
     // Release any resources associated with this scene that can be re-created the next time the scene connects.

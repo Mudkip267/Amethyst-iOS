@@ -313,3 +313,10 @@
 "skin.applied.msg" = "Đã cập nhật skin và áo choàng thành công cho tài khoản!";
 "account.action.select" = "Chọn tài khoản này";
 "login.option.manage" = "Quản lý tài khoản";
+"horizon.action.install" = "Cài đặt Horizon";
+"horizon.action.open" = "Chơi / Cài đặt";
+"horizon.action.cancel" = "Hủy khởi chạy Horizon";
+"horizon.detail.settings" = "Cài file game và chỉnh đồ họa, âm thanh, điều khiển trong Horizon.";
+"horizon.detail.restart" = "Sau khi chọn Horizon, đóng Amethyst trong trình chuyển ứng dụng rồi mở lại. Lần mở tiếp theo sẽ về Amethyst Java.";
+"horizon.detail.queued" = "Đã chọn Horizon cho lần mở kế tiếp. Hãy đóng Amethyst trong trình chuyển ứng dụng rồi mở lại.";
+"horizon.error.unavailable" = "Horizon cần iOS 16 trở lên và bản Amethyst có kèm engine Rust.";

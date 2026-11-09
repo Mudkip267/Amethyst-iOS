@@ -5,6 +5,7 @@
 #import "LauncherPrefManageJREViewController.h"
 #import "LauncherProfileEditorViewController.h"
 #import "LauncherProfilesViewController.h"
+#import "HorizonRuntime.h"
 //#import "NSFileManager+NRFileManager.h"
 #import "PLProfiles.h"
 #pragma clang diagnostic push
@@ -69,6 +70,12 @@ typedef NS_ENUM(NSUInteger, LauncherProfilesTableSection) {
             identifier:@"forge" handler:^(UIAction *action) {
                 [self actionCreateForgeProfile];
             }],
+#if TARGET_OS_IOS && !TARGET_OS_MACCATALYST
+        [UIAction actionWithTitle:@"Rust/Horizons" image:[UIImage systemImageNamed:@"cpu"]
+            identifier:@"rust_horizon" handler:^(UIAction *action) {
+                [self presentNavigatedViewController:[HorizonProfileViewController new]];
+            }],
+#endif
         [UIAction
             actionWithTitle:@"Modpack" image:nil
             identifier:@"modpack" handler:^(UIAction *action) {

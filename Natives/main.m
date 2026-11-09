@@ -6,6 +6,7 @@
 #import "AppDelegate.h"
 #import "customcontrols/CustomControlsUtils.h"
 #import "HostManagerBridge.h"
+#import "HorizonRuntime.h"
 #import "JavaLauncher.h"
 #import "LauncherPreferences.h"
 #import "PLLogOutputView.h"
@@ -282,6 +283,11 @@ int main(int argc, char *argv[]) {
                    "java", "openjdk",
                    /* (const_jargs != NULL) ? JNI_TRUE : */ JNI_FALSE,
                    JNI_TRUE, JNI_FALSE, JNI_TRUE);
+    }
+
+    @autoreleasepool {
+        // The JIT probe child is not a normal app launch and must not consume the marker.
+        if (!(argc == 2 && argv[1][0] == '\0') && AMEHorizonTryBoot()) return 0;
     }
 
     if (!isJITEnabled(true) && argc == 2) {

@@ -1,0 +1,334 @@
+diff --git a/crates/horizon-client/Cargo.toml b/crates/horizon-client/Cargo.toml
+index 63f7ea5..d6a229e 100644
+--- a/crates/horizon-client/Cargo.toml
++++ b/crates/horizon-client/Cargo.toml
+@@ -131,6 +131,7 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
+ wgpu = { version = "30.0.1", default-features = false, features = ["gles"] }
+ 
+ [features]
++amethyst-embedded = []
+ # Private main-thread GPU/input regression probes; absent from shipping builds.
+ test-support = ["horizon-client-render/test-support"]
+ 
+diff --git a/crates/horizon-client/src/entry.rs b/crates/horizon-client/src/entry.rs
+index e279b53..a5671d6 100644
+--- a/crates/horizon-client/src/entry.rs
++++ b/crates/horizon-client/src/entry.rs
+@@ -16,9 +16,14 @@ use crate::{crash, game, logging};
+ /// with no argument to pass.
+ #[cfg(target_os = "ios")]
+ fn into_app_sandbox() -> Result<std::path::PathBuf, String> {
+-    let documents = std::env::var_os("HOME")
+-        .filter(|home| !home.is_empty())
+-        .map(|home| std::path::PathBuf::from(home).join("Documents"))
++    let documents = std::env::var_os("AME_HORIZON_DATA_DIR")
++        .filter(|path| !path.is_empty())
++        .map(std::path::PathBuf::from)
++        .or_else(|| {
++            std::env::var_os("HOME")
++                .filter(|home| !home.is_empty())
++                .map(|home| std::path::PathBuf::from(home).join("Documents"))
++        })
+         .ok_or("iOS gave this app no HOME")?;
+     let describe = |error: std::io::Error| format!("{}: {error}", documents.display());
+     std::fs::create_dir_all(&documents).map_err(describe)?;
+diff --git a/crates/horizon-client/src/lib.rs b/crates/horizon-client/src/lib.rs
+index eaf50a9..4d46e51 100644
+--- a/crates/horizon-client/src/lib.rs
++++ b/crates/horizon-client/src/lib.rs
+@@ -1,7 +1,13 @@
+ //! Gameplay and startup, above the reusable client library.
+-// Android's exported native entry needs unsafe; other targets forbid it.
+-#![cfg_attr(not(target_os = "android"), forbid(unsafe_code))]
+-#![cfg_attr(target_os = "android", deny(unsafe_code))]
++// Native hosts allow the C export attributes at their entry points only.
++#![cfg_attr(
++    not(any(target_os = "android", all(target_os = "ios", feature = "amethyst-embedded"))),
++    forbid(unsafe_code)
++)]
++#![cfg_attr(
++    any(target_os = "android", all(target_os = "ios", feature = "amethyst-embedded")),
++    deny(unsafe_code)
++)]
+ #[cfg(target_os = "android")]
+ #[allow(unsafe_code)]
+ pub mod android;
+@@ -10,3 +16,15 @@ pub use horizon_client_lib::*;
+ pub mod entry;
+ pub mod game;
+ pub mod mod_api;
++
++#[cfg(all(target_os = "ios", feature = "amethyst-embedded"))]
++#[global_allocator]
++static ALLOCATOR: horizon_threads::Allocator = horizon_threads::ALLOCATOR;
++
++/// Starts the native engine before the host enters UIKit.
++#[cfg(all(target_os = "ios", feature = "amethyst-embedded"))]
++#[allow(unsafe_code)]
++#[unsafe(no_mangle)]
++pub extern "C" fn amethyst_horizon_main() {
++    entry::main();
++}
+diff --git a/crates/horizon-client/src/main.rs b/crates/horizon-client/src/main.rs
+index 9005183..376f1c4 100644
+--- a/crates/horizon-client/src/main.rs
++++ b/crates/horizon-client/src/main.rs
+@@ -3,12 +3,14 @@
+ 
+ #[cfg(all(
+     not(target_os = "android"),
++    not(all(target_os = "ios", feature = "amethyst-embedded")),
+     not(any(feature = "system-allocator", feature = "alloc-census"))
+ ))]
+ #[global_allocator]
+ static ALLOCATOR: horizon_threads::Allocator = horizon_threads::ALLOCATOR;
+ #[cfg(all(
+     not(target_os = "android"),
++    not(all(target_os = "ios", feature = "amethyst-embedded")),
+     feature = "alloc-census",
+     not(feature = "system-allocator")
+ ))]
+diff --git a/packaging/ios/Launcher/GameFiles.swift b/packaging/ios/Launcher/GameFiles.swift
+index dc5c8d7..d4c220c 100644
+--- a/packaging/ios/Launcher/GameFiles.swift
++++ b/packaging/ios/Launcher/GameFiles.swift
+@@ -63,6 +63,10 @@ final class GameFilesDownload: NSObject, ObservableObject {
+             return
+         }
+         let token = token.trimmingCharacters(in: .whitespacesAndNewlines)
++        guard token.isEmpty || scheme == "https" else {
++            state = .failed(String(localized: "Use an HTTPS link when downloading with an access token."))
++            return
++        }
+         do {
+             try Keychain.write(token.isEmpty ? nil : token)
+         } catch {
+@@ -181,6 +185,27 @@ final class GameFilesDownload: NSObject, ObservableObject {
+ }
+ 
+ extension GameFilesDownload: URLSessionDownloadDelegate {
++    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask,
++                                willPerformHTTPRedirection response: HTTPURLResponse,
++                                newRequest request: URLRequest,
++                                completionHandler: @escaping (URLRequest?) -> Void) {
++        guard task.originalRequest?.value(forHTTPHeaderField: "Authorization") != nil else {
++            completionHandler(request)
++            return
++        }
++        guard let target = request.url, target.scheme?.lowercased() == "https" else {
++            completionHandler(nil)
++            return
++        }
++        var redirected = request
++        let original = task.originalRequest?.url
++        if target.host?.lowercased() != original?.host?.lowercased()
++            || (target.port ?? 443) != (original?.port ?? 443) {
++            redirected.setValue(nil, forHTTPHeaderField: "Authorization")
++        }
++        completionHandler(redirected)
++    }
++
+     nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData _: Int64,
+                                 totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+         let oversized = totalBytesWritten > Self.maximumArchiveBytes || totalBytesExpectedToWrite > Self.maximumArchiveBytes
+diff --git a/packaging/ios/Launcher/GameLink.swift b/packaging/ios/Launcher/GameLink.swift
+index 6ee9ac2..74ea548 100644
+--- a/packaging/ios/Launcher/GameLink.swift
++++ b/packaging/ios/Launcher/GameLink.swift
+@@ -3,8 +3,13 @@ import UIKit
+ 
+ /// The game's `Documents`: where it keeps saves, screenshots, options.txt and the imported game files.
+ enum GameFolder {
+-    static let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+-        ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
++    static let documents: URL = {
++        if let folder = ProcessInfo.processInfo.environment["AME_HORIZON_DATA_DIR"], !folder.isEmpty {
++            return URL(fileURLWithPath: folder, isDirectory: true)
++        }
++        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
++            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
++    }()
+     static var saves: URL { documents.appendingPathComponent("saves") }
+     static var screenshots: URL { documents.appendingPathComponent("screenshots") }
+     static var resources: URL { documents.appendingPathComponent("resources") }
+diff --git a/packaging/ios/Launcher/HomeView.swift b/packaging/ios/Launcher/HomeView.swift
+index 2cbd74d..2c5bc0f 100644
+--- a/packaging/ios/Launcher/HomeView.swift
++++ b/packaging/ios/Launcher/HomeView.swift
+@@ -15,6 +15,7 @@ struct HomeView: View {
+     @State private var editingName = false
+     @State private var nameDraft = ""
+     @State private var nameRejected = false
++    @State private var showingReturn = false
+ 
+     enum Destination: String, CaseIterable, Identifiable {
+         case play, packs, settings
+@@ -82,6 +83,11 @@ struct HomeView: View {
+         .alert("Something went wrong", isPresented: Binding(
+             get: { link.problem != nil }, set: { if !$0 { link.problem = nil } }
+         )) { Button("OK", role: .cancel) {} } message: { Text(link.problem ?? "") }
++        .alert("Return to Amethyst", isPresented: $showingReturn) {
++            Button("OK", role: .cancel) {}
++        } message: {
++            Text("Close this app from the app switcher, then reopen it to use Amethyst Java.")
++        }
+         .task(id: shownName) { await head.load(shownName) }
+         .onChange(of: account.profile) { profile in
+             if profile != nil { editingName = false; nameDraft = "" }
+@@ -108,10 +114,19 @@ struct HomeView: View {
+             }
+             Spacer(minLength: 0)
+             Button { showingAccount = true } label: {
+-                Avatar(name: shownName, face: head.face, size: 34)
+-                    .frame(width: 48, height: 48)
+-                    .accountCircleGlass()
+-                    .contentShape(Circle())
++                HStack(spacing: 8) {
++                    Avatar(name: shownName, face: head.face, size: 32)
++                    if let shownName {
++                        Text(shownName).font(.subheadline.weight(.semibold))
++                            .foregroundStyle(Theme.text).lineLimit(1)
++                    }
++                    Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
++                        .foregroundStyle(Theme.textMuted)
++                }
++                .padding(.horizontal, 8)
++                .frame(minHeight: 44)
++                .background(Theme.surface, in: Capsule())
++                .overlay(Capsule().strokeBorder(Theme.border))
+             }
+             .buttonStyle(.plain)
+             .accessibilityLabel("Account: \(shownName ?? "Not signed in")")
+@@ -139,6 +154,11 @@ struct HomeView: View {
+                 case .settings:
+                     VStack(spacing: 24) {
+                         SettingsPage(link: link, download: download)
++                        if ProcessInfo.processInfo.environment["AME_HORIZON_DATA_DIR"] != nil {
++                            SecondaryButton(title: String(localized: "Return to Amethyst"), icon: "arrow.uturn.backward") {
++                                showingReturn = true
++                            }
++                        }
+                         NavigationLink { page { GalleryPage() }.navigationTitle("Screenshots") } label: {
+                             Label("Screenshots", systemImage: "photo.on.rectangle")
+                                 .frame(maxWidth: .infinity, alignment: .leading).padding(16).card()
+@@ -150,6 +170,9 @@ struct HomeView: View {
+         .navigationTitle("")
+         .navigationBarTitleDisplayMode(.inline)
+         .toolbarBackground(.hidden, for: .navigationBar)
++        .safeAreaInset(edge: .bottom, spacing: 0) {
++            if item == .play { launchBar }
++        }
+     }
+ 
+     private func page<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+@@ -196,35 +219,48 @@ struct HomeView: View {
+                 }.foregroundStyle(.white.opacity(0.9))
+                     .accessibilityIdentifier("launcher-playing-as")
+             }
+-            HStack {
++        }
++        .padding(sizeClass == .regular ? 32 : 24)
++        .frame(maxWidth: .infinity, minHeight: sizeClass == .regular ? 240 : 190, alignment: .leading)
++        .background {
++            LauncherLandscape(index: 0)
++                .overlay(LinearGradient(colors: [Theme.playBackground.opacity(0.30), .black.opacity(0.76)],
++                                        startPoint: .topTrailing, endPoint: .bottomLeading))
++        }
++        .clipShape(RoundedRectangle(cornerRadius: 20))
++    }
++
++    private var launchBar: some View {
++        VStack(spacing: 8) {
++            if case let .loading(progress) = link.phase {
++                ProgressView(value: progress).tint(Theme.accent).accessibilityLabel("Loading game")
++            }
++            HStack(spacing: 12) {
+                 Button { Task { await link.play() } } label: {
+                     Label(playLabel, systemImage: "play.fill")
+-                        .font(.headline).frame(minWidth: 124, minHeight: 36)
++                        .font(.headline)
++                        .frame(maxWidth: .infinity, minHeight: 48)
++                        .foregroundStyle(.white)
++                        .background(Theme.playBackground, in: RoundedRectangle(cornerRadius: 14))
+                 }
+-                .controlSize(.large)
+-                .launcherPrimaryButton()
+-                .tint(Theme.accent)
+-                .disabled(needsFiles || download.busy || link.launching != nil)
++                .buttonStyle(PressStyle())
++                .disabled(playDisabled)
++                .opacity(playDisabled ? 0.55 : 1)
+                 .accessibilityIdentifier("launcher-play-button")
+                 if link.launching != nil {
+-                    Button("Cancel") { link.cancelLaunch() }.foregroundStyle(.white).frame(minHeight: 44)
++                    Button("Cancel") { link.cancelLaunch() }.frame(minHeight: 44)
+                 }
+-                Spacer(minLength: 0)
+-            }
+-            if case let .loading(progress) = link.phase {
+-                ProgressView(value: progress).tint(.white).accessibilityLabel("Loading game")
+             }
+         }
+-        .padding(sizeClass == .regular ? 32 : 24)
+-        .frame(maxWidth: .infinity, minHeight: sizeClass == .regular ? 350 : 300, alignment: .leading)
+-        .background {
+-            LauncherLandscape(index: 0)
+-                .overlay(LinearGradient(colors: [.black.opacity(0.05), .black.opacity(0.72)],
+-                                        startPoint: .topTrailing, endPoint: .bottomLeading))
+-        }
+-        .clipShape(RoundedRectangle(cornerRadius: 28))
++        .frame(maxWidth: 700)
++        .padding(.horizontal, sizeClass == .regular ? 32 : 20)
++        .padding(.vertical, 10)
++        .frame(maxWidth: .infinity)
++        .background(Theme.surface)
++        .overlay(alignment: .top) { Divider() }
+     }
+ 
++    private var playDisabled: Bool { needsFiles || download.busy || link.launching != nil }
+     private var playLabel: String { link.launching ?? (needsFiles ? "Game files needed" : "Play") }
+     private var needsFiles: Bool {
+         if case .needsFiles = link.phase { return true }
+diff --git a/packaging/ios/Launcher/PlayerName.swift b/packaging/ios/Launcher/PlayerName.swift
+index 71ea83e..96c72e2 100644
+--- a/packaging/ios/Launcher/PlayerName.swift
++++ b/packaging/ios/Launcher/PlayerName.swift
+@@ -35,8 +35,7 @@ final class PlayerName: ObservableObject {
+     }
+ 
+     private static var file: URL? {
+-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+-            .appendingPathComponent("horizon-player.txt")
++        GameFolder.documents.appendingPathComponent("horizon-player.txt")
+     }
+ 
+     private static func load() -> String? {
+diff --git a/packaging/ios/Launcher/Theme.swift b/packaging/ios/Launcher/Theme.swift
+index e7e1f2c..ce746f0 100644
+--- a/packaging/ios/Launcher/Theme.swift
++++ b/packaging/ios/Launcher/Theme.swift
+@@ -9,18 +9,17 @@ final class Kit {
+ /// Semantic UIKit colors adapt to appearance, contrast and accessibility settings.
+ /// Legacy type helper names remain so all launcher pages share the native typography.
+ enum Theme {
+-    static let background = Color(uiColor: UIColor { traits in
+-        traits.userInterfaceStyle == .dark ? UIColor(red: 0.035, green: 0.055, blue: 0.075, alpha: 1) : UIColor(red: 0.94, green: 0.96, blue: 0.97, alpha: 1)
+-    })
+-    static let surface = Color(uiColor: UIColor { traits in
+-        traits.userInterfaceStyle == .dark ? UIColor(red: 0.075, green: 0.10, blue: 0.125, alpha: 1) : .white
+-    })
++    static let background = Color(uiColor: .systemGroupedBackground)
++    static let surface = Color(uiColor: .secondarySystemGroupedBackground)
+     static let surfaceSunken = Color(uiColor: .tertiarySystemGroupedBackground)
+     static let surfaceDisabled = Color(uiColor: .tertiarySystemFill)
+     static let border = Color(uiColor: .separator).opacity(0.28)
+     static let accent = Color(uiColor: UIColor { traits in
+-        traits.userInterfaceStyle == .dark ? UIColor(red: 0.34, green: 0.85, blue: 0.79, alpha: 1) : UIColor(red: 0.025, green: 0.40, blue: 0.44, alpha: 1)
++        traits.userInterfaceStyle == .dark
++            ? UIColor(red: 0.76, green: 0.61, blue: 0.98, alpha: 1)
++            : UIColor(red: 0.43, green: 0.24, blue: 0.66, alpha: 1)
+     })
++    static let playBackground = Color(hex: 0x633596)
+     static let accentEdge = accent
+     static let accentBright = accent
+     static let accentText = accent

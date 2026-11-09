@@ -19,7 +19,7 @@ jobs:
           - platform: 2
             platform_name: ios
     
-    runs-on: macos-latest
+    runs-on: ${{ github.ref_name == 'codex/amethyst-horizon-runtime' && 'macos-26' || 'macos-latest' }}
     steps:
       - name: Remove work folders
         run: |
@@ -51,6 +51,34 @@ jobs:
 
       - name: Install Dependencies
         run: brew install make ldid temurin@8
+
+      - name: Checkout pinned Horizon iOS source
+        if: github.ref_name == 'codex/amethyst-horizon-runtime'
+        uses: actions/checkout@v4
+        with:
+          repository: heyskylo/horizon-ios
+          ref: cf2707b035917d9f93fb7ea89ddc077396e19e96
+          path: horizon-engine-src
+          persist-credentials: false
+
+      - name: Install Horizon Rust toolchain
+        if: github.ref_name == 'codex/amethyst-horizon-runtime'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Cache Horizon Rust build
+        if: github.ref_name == 'codex/amethyst-horizon-runtime'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: horizon-engine-src -> target
+
+      - name: Build Horizon Rust engine and launcher framework
+        if: github.ref_name == 'codex/amethyst-horizon-runtime'
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          bash tools/build-horizon-ios.sh horizon-engine-src "$RUNNER_TEMP/HorizonFrameworks"
+          echo "HORIZON_FRAMEWORKS_DIR=$RUNNER_TEMP/HorizonFrameworks" >> "$GITHUB_ENV"
 
       - name: Get gl4es latest commit hash
         id: gl4es-sha

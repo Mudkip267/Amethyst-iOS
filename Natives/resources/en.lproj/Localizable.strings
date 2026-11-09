@@ -520,3 +520,10 @@
 "skin.applied.msg" = "Skin and cape updated successfully for this account!";
 "account.action.select" = "Select Account";
 "login.option.manage" = "Manage Accounts";
+"horizon.action.install" = "Set Up Horizon";
+"horizon.action.open" = "Play / Settings";
+"horizon.action.cancel" = "Cancel Horizon Launch";
+"horizon.detail.settings" = "Install game files and adjust graphics, audio and controls in Horizon.";
+"horizon.detail.restart" = "After selecting Horizon, close Amethyst from the app switcher and reopen it. The next launch returns to Amethyst Java.";
+"horizon.detail.queued" = "Horizon is selected for the next launch. Close Amethyst from the app switcher and reopen it.";
+"horizon.error.unavailable" = "Horizon requires iOS 16 or newer and an Amethyst build containing the Rust engine.";
